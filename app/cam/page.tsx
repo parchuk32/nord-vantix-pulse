@@ -8,7 +8,7 @@ export default function AgentUplink() {
 
   const initializeUplink = async () => {
     // On génère le token automatiquement pour la salle de SL0TE
-    const resp = await fetch(`/api/get-participant-token?room=room-slote&username=Agent_Slote`);
+    const resp = await fetch(`/api/get-participant-token?room=room-SLOTE&username=Agent_Slote`);
     const data = await resp.json();
     setToken(data.token);
     setActive(true);
