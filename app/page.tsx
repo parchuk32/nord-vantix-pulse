@@ -1,8 +1,9 @@
 "use client";
 
+import SecurityMonitor from './components/SecurityMonitor';
 import React, { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { LiveKitRoom, VideoConference } from '@livekit/components-react';
+import { LiveKitRoom } from '@livekit/components-react';
 import '@livekit/components-styles';
 
 // 1. Connexion Supabase (Extérieur pour éviter les doublons)
@@ -54,12 +55,12 @@ function VideoMonitor({ room, name }: { room: string, name: string }) {
         connect={true}
       >
         <div className="absolute inset-0 flex items-center justify-center bg-black">
-          <VideoConference /> 
+          <SecurityMonitor /> 
         </div>
       </LiveKitRoom>
     </div>
   );
-} // <--- C'est cette accolade qui manquait probablement !
+}
 
 // 3. La carte du joueur (Indépendante)
 function LiveCard({ player }: { player: any }) {
