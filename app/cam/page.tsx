@@ -5,10 +5,16 @@ import { LiveKitRoom, VideoConference } from '@livekit/components-react';
 export default function AgentUplink() {
   const [active, setActive] = useState(false);
   const [token, setToken] = useState("");
+  const [currentId, setCurrentId] = useState("");
 
   const initializeUplink = async () => {
-    // On génère le token automatiquement pour la salle de SL0TE
-    const resp = await fetch(`/api/get-participant-token?room=room-SLOTE&username=Agent_Slote`);
+    // 1. Le site lit l'adresse web pour trouver qui se connecte
+    const urlParams = new URLSearchParams(window.location.search);
+    const agentId = urlParams.get('id') || 'SLOTE'; // SLOTE par défaut si l'ID manque
+    setCurrentId(agentId);
+
+    // 2. Il crée la salle sur mesure pour ce joueur
+    const resp = await fetch(`/api/get-participant-token?room=room-${agentId}&username=Agent_${agentId}`);
     const data = await resp.json();
     setToken(data.token);
     setActive(true);
@@ -38,7 +44,7 @@ export default function AgentUplink() {
           >
             <VideoConference />
             <div className="absolute top-4 left-4 z-50 bg-black/50 p-2 text-[8px] border border-[#a855f7]">
-              ENCRYPTED_FEED // SIGNAL_STRENGTH: OPTIMAL
+              ENCRYPTED_FEED // AGENT: {currentId}
             </div>
           </LiveKitRoom>
         </div>
