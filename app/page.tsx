@@ -36,7 +36,7 @@ export default function LandingPage() {
       {/* 4. LE CENTRE (L'ORB + PULSE) */}
       <div className="flex-1 flex flex-col items-center justify-center relative z-30">
         
-        {/* L'ORB ÉNERGÉTIQUE (Plusieurs couches pour l'effet tournant) */}
+        {/* L'ORB ÉNERGÉTIQUE */}
         <div className="relative w-[450px] h-[450px] flex items-center justify-center">
           <div className="pulse-core" />
           <div className="orb-texture" />
@@ -44,8 +44,7 @@ export default function LandingPage() {
           
           {/* LE TITRE AU MILIEU DE L'ORB */}
           <div className="relative text-center select-none z-10">
-            <h1 className="text-[12rem] md:text-[16rem] font-black italic tracking-tighter leading-none text-white 
-              animate-[glitch-hard_0.3s_infinite_ease-out] drop-shadow-[0_0_50px_rgba(168,85,247,0.8)]">
+            <h1 className="text-[12rem] md:text-[16rem] font-black italic tracking-tighter leading-none text-white animate-[glitch-hard_0.3s_infinite_ease-out] drop-shadow-[0_0_50px_rgba(168,85,247,0.8)]">
               PULSE
             </h1>
             <div className="text-[10px] tracking-[1.8em] text-white uppercase -mt-8 font-black opacity-50 ml-4">
