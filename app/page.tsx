@@ -6,11 +6,11 @@ export default function PulseLandingPage() {
   return (
     <main className="relative w-screen h-screen bg-black text-white flex flex-col justify-between overflow-hidden font-mono">
       
-      {/* ENVIRONNEMENT */}
+      {/* ENVIRONNEMENT (Grille qui bouge) */}
       <div className="grid-floor" />
       <div className="absolute inset-0 bg-gradient-to-b from-black via-transparent to-black z-10 pointer-events-none" />
 
-      {/* HUD DATA SIDES */}
+      {/* HUD DATA (Côtés tactiques) */}
       <div className="absolute inset-0 z-20 pointer-events-none p-10 flex justify-between items-center opacity-60">
         <div className="border-l-2 border-violet-500 pl-4 bg-black/40 p-4">
           <div className="text-[10px] text-violet-400 font-black tracking-widest uppercase mb-1">System_Uplink</div>
@@ -22,7 +22,7 @@ export default function PulseLandingPage() {
         </div>
       </div>
 
-      {/* HEADER */}
+      {/* HEADER TACTIQUE */}
       <header className="p-8 flex justify-between items-center z-50">
         <div className="tracking-[0.8em] font-black text-xs italic uppercase text-white">NORD.VANTIX <span className="text-violet-500">:: PULSE</span></div>
         <div className="flex gap-10 text-[10px] text-gray-500 font-black uppercase tracking-widest">
@@ -35,10 +35,10 @@ export default function PulseLandingPage() {
       <div className="flex-1 flex flex-col items-center justify-center relative z-30">
         <div className="flex flex-col items-center text-center select-none">
           
-          {/* LE TITRE SANS OVERLAP */}
+          {/* LE TITRE (Totalement visible) */}
           <h1 className="pulse-monolith">PULSE</h1>
           
-          {/* SOUS-TITRE REPOSITIONNÉ PROPREMENT */}
+          {/* SOUS-TITRE (Positionné proprement) */}
           <p className="text-[10px] md:text-xs tracking-[1.5em] text-violet-300 font-black uppercase mt-4 opacity-60">
             Tactical Operations Hub
           </p>
@@ -55,7 +55,7 @@ export default function PulseLandingPage() {
         </div>
       </div>
 
-      {/* FOOTER */}
+      {/* FOOTER TACTIQUE */}
       <footer className="w-full bg-black/90 border-t border-white/5 p-8 z-50">
         <div className="flex justify-between items-center mb-4">
           <div className="flex gap-8 text-gray-600">
