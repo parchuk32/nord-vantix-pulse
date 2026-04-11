@@ -1,6 +1,6 @@
 "use client";
 
-import SecurityMonitor from './components/SecurityMonitor';
+import SecurityMonitor from '../components/SecurityMonitor';
 import React, { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { LiveKitRoom } from '@livekit/components-react';
