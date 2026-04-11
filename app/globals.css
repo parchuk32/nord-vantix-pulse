@@ -3,78 +3,75 @@
 @theme {
   --font-mono: "Share Tech Mono", "JetBrains Mono", ui-monospace, monospace;
 
-  /* Palette de combat optimisée */
-  --void:          #000005;
-  --violet-core:   #7c3aed;
-  --violet-hot:    #a855f7;
-  --violet-glow:   rgba(124, 58, 237, 0.4);
+  /* --- KEYFRAMES CORRIGÉES --- */
+  
+  /* On enlève l'espace pour éviter l'erreur */
+  @keyframes glitch-sharp {
+    0%, 95%, 100% { transform: translate(0); text-shadow: none; }
+    96% { transform: translate(-3px, 2px); text-shadow: 2px 0 rgba(168, 85, 247, 0.8); }
+    97% { transform: translate(3px, -2px); text-shadow: -2px 0 rgba(34, 211, 238, 0.8); }
+    98% { transform: translate(0); }
+  }
+
+  @keyframes core-radiance {
+    0%, 100% { opacity: 0.5; filter: drop-shadow(0 0 30px rgba(124, 58, 237, 0.4)); }
+    50% { opacity: 1; filter: drop-shadow(0 0 60px rgba(124, 58, 237, 0.8)); }
+  }
+
+  @keyframes grid-scroll {
+    from { background-position-y: 0; }
+    to { background-position-y: 60px; }
+  }
 }
 
-/* --- ANIMATIONS --- */
-@keyframes grid-travel {
-  from { background-position-y: 0; }
-  to { background-position-y: 60px; }
+/* --- BASE STYLES --- */
+:root {
+  --background: #000000;
+  --foreground: #ffffff;
 }
 
-@keyframes orb-pulse {
-  0%, 100% { transform: scale(1); opacity: 0.5; filter: blur(40px); }
-  50% { transform: scale(1.1); opacity: 0.8; filter: blur(60px); }
-}
-
-@keyframes glitch-sharp {
-  0%, 95%, 100% { transform: translate(0); }
-  96% { transform: translate(-4px, 2px); text-shadow: 2px 0 #a855f7; }
-  97% { transform: translate(4px, -2px); text-shadow: -2px 0 #22d3ee; }
-  98% { transform: translate(-2px, -2px); }
-}
-
-/* --- BASE --- */
-html, body {
-  background: var(--void);
+body {
+  background: var(--background);
+  color: var(--foreground);
   font-family: var(--font-mono);
-  color: #ffffff;
   overflow: hidden;
+  margin: 0;
 }
 
-/* --- TITRE PULSE : L'IMPACT MAXIMUM --- */
-.glitch-main-text {
-  /* Taille massive pour une visibilité totale */
-  font-size: clamp(100px, 18vw, 190px);
+/* --- LE LOGO MONOLITHE (Effet Premium) --- */
+.pulse-monolith {
+  font-size: clamp(80px, 15vw, 200px);
   font-weight: 950;
   font-style: italic;
-  letter-spacing: -0.04em;
+  letter-spacing: -0.05em;
   line-height: 0.8;
-  /* Gradient blanc vers violet très contrasté */
-  background: linear-gradient(180deg, #ffffff 30%, #a855f7 100%);
+  text-transform: uppercase;
+  position: relative;
+  z-index: 10;
+  
+  /* Aspect Acier sombre / Gravure */
+  background: linear-gradient(180deg, #ffffff 0%, #4b5563 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 0 40px rgba(168, 85, 247, 0.4));
+  
+  /* L'irradiation violette */
+  filter: drop-shadow(0 0 35px rgba(168, 85, 247, 0.6));
   animation: glitch-sharp 4s steps(1) infinite;
 }
 
-/* --- L'ORB SIMPLIFIÉ (Halo de fond) --- */
-.energy-core {
+/* Effet de profondeur derrière le texte (remplace le cercle cheap) */
+.pulse-monolith::after {
+  content: "PULSE";
   position: absolute;
-  width: 500px; 
-  height: 500px;
-  background: radial-gradient(circle, rgba(124, 58, 237, 0.5) 0%, transparent 75%);
-  border-radius: 50%;
-  animation: orb-pulse 5s ease-in-out infinite;
-  z-index: 1;
+  inset: 0;
+  z-index: -1;
+  -webkit-text-fill-color: rgba(124, 58, 237, 0.3);
+  filter: blur(25px);
+  animation: core-radiance 3s ease-in-out infinite;
 }
-
-.core-ring {
-  position: absolute;
-  width: 100%; height: 100%;
-  border: 1px dashed rgba(168, 85, 247, 0.2);
-  border-radius: 50%;
-  animation: rotate 20s linear infinite;
-}
-
-@keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
 /* Grille Tactique */
-.tactical-floor {
+.grid-floor {
   position: absolute;
   inset: -100%;
   background-image: 
@@ -82,6 +79,5 @@ html, body {
     linear-gradient(to bottom, rgba(124, 58, 237, 0.1) 1px, transparent 1px);
   background-size: 60px 60px;
   transform: perspective(600px) rotateX(65deg);
-  animation: grid-travel 2s linear infinite;
-  z-index: 0;
+  animation: grid-scroll 2s linear infinite;
 }
