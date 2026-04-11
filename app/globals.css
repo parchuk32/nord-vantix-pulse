@@ -3,9 +3,6 @@
 @theme {
   --font-mono: "Share Tech Mono", "JetBrains Mono", ui-monospace, monospace;
 
-  /* --- KEYFRAMES CORRIGÉES --- */
-  
-  /* On enlève l'espace pour éviter l'erreur */
   @keyframes glitch-sharp {
     0%, 95%, 100% { transform: translate(0); text-shadow: none; }
     96% { transform: translate(-3px, 2px); text-shadow: 2px 0 rgba(168, 85, 247, 0.8); }
@@ -38,39 +35,37 @@ body {
   margin: 0;
 }
 
-/* --- LE LOGO MONOLITHE (Effet Premium) --- */
+/* --- LE MONOLITHE PULSE --- */
 .pulse-monolith {
   font-size: clamp(80px, 15vw, 200px);
   font-weight: 950;
   font-style: italic;
   letter-spacing: -0.05em;
-  line-height: 0.8;
+  /* On remet un line-height normal pour ne pas écraser le texte en dessous */
+  line-height: 1; 
   text-transform: uppercase;
   position: relative;
   z-index: 10;
   
-  /* Aspect Acier sombre / Gravure */
-  background: linear-gradient(180deg, #ffffff 0%, #4b5563 100%);
+  background: linear-gradient(180deg, #ffffff 20%, #4b5563 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   
-  /* L'irradiation violette */
   filter: drop-shadow(0 0 35px rgba(168, 85, 247, 0.6));
   animation: glitch-sharp 4s steps(1) infinite;
 }
 
-/* Effet de profondeur derrière le texte (remplace le cercle cheap) */
+/* Lueur émanant du texte */
 .pulse-monolith::after {
   content: "PULSE";
   position: absolute;
   inset: 0;
   z-index: -1;
-  -webkit-text-fill-color: rgba(124, 58, 237, 0.3);
-  filter: blur(25px);
+  -webkit-text-fill-color: rgba(124, 58, 237, 0.2);
+  filter: blur(30px);
   animation: core-radiance 3s ease-in-out infinite;
 }
 
-/* Grille Tactique */
 .grid-floor {
   position: absolute;
   inset: -100%;
