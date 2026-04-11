@@ -1,133 +1,83 @@
 "use client";
+import Link from 'next/link';
+import React from 'react';
 
-import SecurityMonitor from './components/SecurityMonitor';
-import React, { useEffect, useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
-import { LiveKitRoom } from '@livekit/components-react';
-import '@livekit/components-styles';
-
-// 1. Connexion Supabase (Extérieur pour éviter les doublons)
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
-);
-
-// 2. Le composant Vidéo (Le moniteur)
-function VideoMonitor({ room, name }: { room: string, name: string }) {
-  const [token, setToken] = useState("");
-  const [isJoined, setIsJoined] = useState(false);
-
-  useEffect(() => {
-    const getToken = async () => {
-      try {
-        const resp = await fetch(`/api/get-participant-token?room=${room}&username=${name}`);
-        const data = await resp.json();
-        if (data.token) setToken(data.token);
-      } catch (e) {
-        console.error("Erreur Token:", e);
-      }
-    };
-    getToken();
-  }, [room, name]);
-
-  if (!token) return <div className="h-48 bg-black animate-pulse border-b border-gray-800" />;
-
-  if (!isJoined) {
-    return (
-      <button 
-        onClick={() => setIsJoined(true)}
-        className="w-full h-48 bg-[#0a0a0a] border-b border-gray-800 flex items-center justify-center group hover:bg-[#111] transition-colors"
-      >
-        <span className="text-[#a855f7] text-[10px] tracking-[0.3em] group-hover:scale-110 transition-transform">
-          [ INITIALIZE_FEED ]
-        </span>
-      </button>
-    );
-  }
-
+export default function LandingPage() {
   return (
-    <div className="w-full h-48 bg-black border-b border-gray-800 relative overflow-hidden">
-      <LiveKitRoom
-        video={false}
-        audio={false}
-        token={token}
-        serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
-        connect={true}
-      >
-        <div className="absolute inset-0 flex items-center justify-center bg-black">
-          <SecurityMonitor /> 
+    <main className="min-h-screen bg-[#050505] text-white font-mono flex flex-col justify-between overflow-hidden relative">
+      
+      {/* HEADER */}
+      <header className="p-6 flex justify-between items-center border-b border-gray-900/50 bg-black/20 backdrop-blur-md z-20">
+        <div className="tracking-[0.3em] font-bold text-sm">NORD.VANTIX</div>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-gray-500 uppercase tracking-widest">Watchers Online:</span>
+          <span className="text-sm font-bold tracking-tighter">042</span>
         </div>
-      </LiveKitRoom>
-    </div>
-  );
-}
+      </header>
 
-// 3. La carte du joueur (Indépendante)
-function LiveCard({ player }: { player: any }) {
-  return (
-    <div className="border border-gray-800 rounded-lg overflow-hidden relative group hover:border-[#a855f7] transition-all duration-300 bg-black/40">
-      <VideoMonitor room={`room-${player.player_id}`} name="Terminal_Watcher" />
-      <div className="p-3">
-        <div className="flex justify-between items-center mb-1">
-          <span className="text-[10px] text-[#a855f7] bg-[#a855f7]/10 px-2 py-0.5 border border-[#a855f7]/20 uppercase">
-            ID: {player.player_id}
-          </span>
-          <span className="text-[10px] text-red-500 animate-pulse font-bold">● LIVE</span>
+      {/* CENTRE : PULSE & BOUTONS */}
+      <div className="flex-1 flex flex-col items-center justify-center relative">
+        
+        {/* Aura Violette (Derrière le texte) */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+          <div className="w-[400px] h-[400px] bg-[#a855f7]/20 rounded-full blur-[120px] animate-pulse"></div>
         </div>
-        <div className="text-right">
-          <span className="text-lg text-[#facc15] font-bold tabular-nums">${player.bounty}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
 
-// 4. Le Terminal Principal (Exporté par défaut)
-export default function WatcherTerminal() {
-  const [activePlayers, setActivePlayers] = useState<any[]>([]);
-
-  useEffect(() => {
-    const fetchSessions = async () => {
-      const { data } = await supabase.from('live_sessions').select('*');
-      if (data) setActivePlayers(data);
-    };
-
-    fetchSessions();
-
-    const channel = supabase
-      .channel('db-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'live_sessions' }, () => {
-        fetchSessions();
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
-  return (
-    <main className="min-h-screen bg-black text-gray-400 font-mono p-4 md:p-10">
-      <div className="max-w-7xl mx-auto">
-        <header className="flex justify-between items-end border-b border-gray-900 pb-6 mb-10">
-          <div>
-            <h1 className="text-3xl tracking-[0.3em] text-white font-black uppercase italic">
-              NORD.VANTIX <span className="text-[#a855f7] not-italic">:: PULSE</span>
+        {/* Titre PULSE */}
+        <div className="relative z-10 mb-16 text-center">
+          <h1 className="text-8xl md:text-[12rem] font-black tracking-[-0.05em] opacity-40 select-none italic text-gray-400">
+            PULSE
+          </h1>
+          <div className="absolute inset-0 flex items-center justify-center">
+             <h1 className="text-8xl md:text-[12rem] font-black tracking-[-0.05em] text-white italic drop-shadow-[0_0_30px_rgba(168,85,247,0.5)]">
+              PULSE
             </h1>
-            <p className="text-[10px] text-gray-600 mt-2 tracking-[0.2em]">TERMINAL_STATUS: <span className="text-green-500">ONLINE</span></p>
           </div>
-          <div className="text-right">
-            <div className="text-[10px] text-gray-600 uppercase">Active_Nodes</div>
-            <div className="text-2xl text-white font-light">{activePlayers.length}</div>
-          </div>
-        </header>
+        </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {activePlayers.map((player) => (
-            <LiveCard key={player.id} player={player} />
-          ))}
+        {/* BOUTONS */}
+        <div className="flex gap-8 z-20">
+          <Link href="/terminal" className="px-12 py-4 bg-[#a855f7] text-white rounded-xl font-bold tracking-[0.2em] text-sm uppercase hover:shadow-[0_0_20px_#a855f7] transition-all hover:scale-105 active:scale-95">
+            Watcher
+          </Link>
+          <Link href="/cam?id=GHOST" className="px-12 py-4 bg-gray-300 text-black rounded-xl font-bold tracking-[0.2em] text-sm uppercase hover:bg-white transition-all hover:scale-105 active:scale-95">
+            Player
+          </Link>
         </div>
       </div>
+
+      {/* FOOTER : Ticker défilant technique */}
+      <footer className="w-full bg-black border-t border-[#a855f7]/30 py-4 z-20">
+        <div className="flex whitespace-nowrap overflow-hidden group">
+          <div className="flex animate-ticker gap-10">
+            <TickerText />
+            <TickerText />
+            <TickerText />
+          </div>
+        </div>
+      </footer>
+
+      {/* Animation CSS pour le ticker */}
+      <style jsx global>{`
+        @keyframes ticker {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
+        .animate-ticker {
+          animation: ticker 40s linear infinite;
+        }
+      `}</style>
     </main>
+  );
+}
+
+function TickerText() {
+  return (
+    <span className="text-[10px] md:text-xs text-gray-400 tracking-widest uppercase flex gap-10">
+      <span>2,184.20 (+0.42%) // USD/JPY: 151.62 (-0.12%)</span>
+      <span className="text-[#a855f7] font-bold">[LIVE] PLAYER_042 ACCEPTED "EXTREME_PARKOUR"</span>
+      <span>CURRENT__POT: $15,000 // ENCRYPTION: AES-256</span>
+      <span>SERVER__LATENCY: 14MS // CLAN: NORD.VANTIX</span>
+    </span>
   );
 }
