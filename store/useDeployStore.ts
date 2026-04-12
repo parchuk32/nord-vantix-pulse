@@ -1,32 +1,80 @@
 import { create } from 'zustand';
 
 interface DeployState {
-  hardwareReady: boolean; networkStable: boolean; aiApproved: boolean; safetyValid: boolean;
-  logs: string[]; riskLevel: 'LOW' | 'MID' | 'EXTREME'; payout: number;
-  // Real Settings
-  streamConfig: { quality: string; overlayColor: string; lowLatency: boolean };
+  // --- ÉTATS DE DÉPLOIEMENT ---
+  hardwareReady: boolean;
+  networkStable: boolean;
+  aiApproved: boolean;
+  safetyValid: boolean;
+  isLive: boolean;
+  
+  // --- DONNÉES DE MISSION ---
+  logs: string[];
+  riskLevel: 'LOW' | 'MID' | 'EXTREME';
+  payout: number;
+  
+  // --- RÉGLAGES RÉELS (PROD) ---
+  settings: {
+    account: { username: string; status: string; reputation: number };
+    notifications: { alerts: boolean; tacticalComms: boolean };
+    appearance: { accentColor: string; crtEffect: boolean; quality: string };
+    privacy: { stealthMode: boolean; dataEncryption: string };
+  };
+
+  // --- ACTIONS ---
   setModuleStatus: (module: string, status: boolean) => void;
   addLog: (msg: string) => void;
   setRisk: (level: 'LOW' | 'MID' | 'EXTREME') => void;
-  updateSettings: (newSettings: any) => void;
+  updateSettings: (category: string, newSettings: any) => void;
   isSystemReady: () => boolean;
 }
 
 export const useDeployStore = create<DeployState>((set, get) => ({
-  hardwareReady: false, networkStable: false, aiApproved: false, safetyValid: false,
-  logs: ["[SYSTEM] Initialization sequence started..."],
-  riskLevel: 'MID', payout: 7500,
-  streamConfig: { quality: '4K_ULTRA', overlayColor: '#00FFC2', lowLatency: true },
+  // Initialisation
+  hardwareReady: false,
+  networkStable: false,
+  aiApproved: false,
+  safetyValid: false,
+  isLive: false,
   
-  addLog: (msg) => set((s) => ({ logs: [`[${new Date().toLocaleTimeString()}] ${msg}`, ...s.logs].slice(0, 15) })),
+  logs: ["[SYSTEM] Pulse_OS v4.0 initialized..."],
+  riskLevel: 'MID',
+  payout: 7500,
+
+  // Données Utilisateur & Préférences
+  settings: {
+    account: { username: 'TRISTAN', status: 'OPERATOR_ELITE', reputation: 450 },
+    notifications: { alerts: true, tacticalComms: true },
+    appearance: { accentColor: '#00FFC2', crtEffect: true, quality: '4K_ULTRA' },
+    privacy: { stealthMode: false, dataEncryption: 'AES-256' },
+  },
+
+  // Logique des Logs
+  addLog: (msg) => set((s) => ({ 
+    logs: [`[${new Date().toLocaleTimeString()}] ${msg}`, ...s.logs].slice(0, 15) 
+  })),
+
+  // Gestion des Modules
   setModuleStatus: (mod, stat) => set((s) => ({ ...s, [mod]: stat })),
+
+  // Calcul dynamique du Payout
   setRisk: (level) => {
     const mult = { LOW: 0.5, MID: 1, EXTREME: 2.5 };
     set({ riskLevel: level, payout: 7500 * mult[level] });
   },
-  updateSettings: (newSettings) => set((s) => ({ streamConfig: { ...s.streamConfig, ...newSettings } })),
+
+  // Mise à jour des catégories de Settings
+  updateSettings: (category, newSettings) => set((s) => ({
+    settings: {
+      ...s.settings,
+      [category]: { ...s.settings[category as keyof typeof s.settings], ...newSettings }
+    }
+  })),
+
+  // Le "Gatekeeper" avant le Live
   isSystemReady: () => {
     const s = get();
-    return s.hardwareReady && s.networkStable && s.aiApproved && s.safetyValid;
+    // On peut ajouter networkStable ici si tu veux forcer un bon ping avant le live
+    return s.aiApproved && s.safetyValid; 
   }
 }));
