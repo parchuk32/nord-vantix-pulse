@@ -7,7 +7,7 @@ export default function Header() {
   const pathname = usePathname();
 
   const navItems = [
-    { name: 'HOME', path: '/terminal' }, // Tu peux garder tes anciens paths
+    { name: 'HOME', path: '/home' }, // Tu peux garder tes anciens paths
     { name: 'WATCHER', path: '/terminal' },
     { name: 'PLAYERS', path: '/operator' },
     { name: 'RANKINGS', path: '/rankings' },

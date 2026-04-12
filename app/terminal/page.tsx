@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { LiveKitRoom, useTracks, VideoTrack } from '@livekit/components-react';
 import { Track } from 'livekit-client';
-import { ChevronLeft, Zap, LayoutDashboard, Globe, History, Activity, DollarSign, Search, ShieldCheck } from 'lucide-react';
+import { ChevronLeft, Zap, TrendingUp, MessageSquare, Shield, Activity, Users } from 'lucide-react';
 import '@livekit/components-styles';
 
 const supabase = createClient(
@@ -12,37 +12,18 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 );
 
-// 1. RENDU VIDÉO (FIXÉ)
+// --- RENDU VIDÉO ---
 function VideoRenderer() {
   const tracks = useTracks([Track.Source.Camera], { onlySubscribed: true });
   const activeTrack = tracks[0];
 
-  if (activeTrack) {
-    return <VideoTrack trackRef={activeTrack} className="absolute inset-0 w-full h-full object-cover shadow-[inset_0_0_50px_rgba(0,0,0,0.5)]" />;
-  }
-
-  return (
+  return activeTrack ? (
+    <VideoTrack trackRef={activeTrack} className="absolute inset-0 w-full h-full object-cover shadow-[inset_0_0_100px_rgba(0,0,0,0.8)]" />
+  ) : (
     <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#050505]">
-      <div className="w-5 h-5 border-2 border-[#a855f7]/20 border-t-[#a855f7] rounded-full animate-spin mb-3" />
-      <div className="text-[7px] text-[#a855f7] animate-pulse tracking-[0.4em] uppercase">Searching_Signal...</div>
+      <div className="w-8 h-8 border-2 border-[#00FFC2]/20 border-t-[#00FFC2] rounded-full animate-spin mb-4" />
+      <div className="text-[8px] text-[#00FFC2] animate-pulse tracking-[0.4em] uppercase font-black">Establishing_Uplink...</div>
     </div>
-  );
-}
-
-// 2. MONITEUR LIVE
-function VideoMonitor({ room, name }: { room: string, name: string }) {
-  const [token, setToken] = useState("");
-  useEffect(() => {
-    fetch(`/api/get-participant-token?room=${room}&username=${name}`)
-      .then(res => res.json()).then(data => { if(data.token) setToken(data.token); });
-  }, [room, name]);
-
-  if (!token) return <div className="h-full bg-black border border-white/5 animate-pulse" />;
-  
-  return (
-    <LiveKitRoom video={true} audio={true} token={token} serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL} connect={true} className="h-full w-full relative">
-      <VideoRenderer />
-    </LiveKitRoom>
   );
 }
 
@@ -61,152 +42,144 @@ export default function WatcherTerminal() {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
-  // --- MODE CINÉMA (TWITCH STYLE) ---
+  // --- MODE GROS DASHBOARD (Quand on regarde un joueur) ---
   if (selectedPlayer) {
     return (
-      <main className="h-screen w-screen bg-black flex flex-col font-mono overflow-hidden">
-        <div className="p-4 border-b border-white/10 flex justify-between items-center bg-black/80 z-50">
-          <button onClick={() => setSelectedPlayer(null)} className="flex items-center gap-2 text-white hover:text-[#a855f7] transition-all group">
-            <ChevronLeft size={18} className="group-hover:-translate-x-1 transition-transform" /> 
-            <span className="text-[10px] font-black uppercase tracking-widest text-[#a855f7]">Back_to_Hub</span>
+      <main className="h-[calc(100vh-64px)] w-full bg-black flex overflow-hidden font-mono">
+        
+        {/* SECTION GAUCHE : VIDÉO + INFOS MISSION */}
+        <div className="flex-1 flex flex-col border-r border-white/5 relative">
+          
+          {/* Bouton Retour */}
+          <button onClick={() => setSelectedPlayer(null)} className="absolute top-6 left-6 z-50 bg-black/60 backdrop-blur-md px-4 py-2 border border-white/10 text-[#00FFC2] text-[10px] font-black uppercase tracking-widest hover:bg-[#00FFC2] hover:text-black transition-all rounded-sm flex items-center gap-2">
+            <ChevronLeft size={14} /> Back_to_Hub
           </button>
-          <div className="flex flex-col items-center">
-             <div className="text-[7px] text-gray-500 uppercase tracking-[0.3em]">Agent_Monitoring_Uplink</div>
-             <div className="text-xs text-white font-black tracking-widest uppercase italic">{selectedPlayer.player_id}</div>
+
+          {/* Player Viewport */}
+          <div className="flex-1 relative bg-[#080808]">
+             <LiveKitRoom video={true} audio={true} token="TOKEN" serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL} connect={true} className="h-full w-full">
+                <VideoRenderer />
+             </LiveKitRoom>
+             
+             {/* Player Overlay Stats */}
+             <div className="absolute top-6 right-6 flex flex-col items-end gap-2">
+                <div className="text-4xl font-black italic text-[#00FFC2] drop-shadow-[0_0_15px_rgba(0,255,194,0.4)]">
+                   $2,140.75
+                </div>
+                <div className="flex gap-2">
+                   <span className="bg-red-600 px-2 py-0.5 text-[9px] font-black rounded-sm shadow-lg">LIVE</span>
+                   <span className="bg-black/60 px-2 py-0.5 text-[9px] border border-white/10 rounded-sm text-white/70">25,478 WATCHERS</span>
+                </div>
+             </div>
           </div>
-          <div className="flex items-center gap-6">
+
+          {/* Mission Details (Bas de l'écran) */}
+          <div className="h-48 border-t border-white/5 bg-black/40 p-8 flex justify-between items-center">
+             <div className="space-y-4 max-w-lg w-full">
+                <div>
+                   <span className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Active_Operation</span>
+                   <h3 className="text-3xl font-black italic uppercase tracking-tighter">Crane Height Challenge</h3>
+                </div>
+                <div className="space-y-2">
+                   <div className="flex justify-between text-[10px] font-black">
+                      <span className="text-[#00FFC2] uppercase italic tracking-widest">Final_Task_Progress</span>
+                      <span>62%</span>
+                   </div>
+                   <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
+                      <div className="h-full bg-[#00FFC2] shadow-[0_0_15px_#00FFC2]" style={{ width: '62%' }} />
+                   </div>
+                </div>
+             </div>
              <div className="text-right">
-                <div className="text-[7px] text-gray-500 uppercase tracking-widest">Payout</div>
-                <div className="text-lg text-[#facc15] font-black italic tracking-tighter">${selectedPlayer.bounty || '4,500'}</div>
+                <span className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Bounty_Pool</span>
+                <div className="text-3xl font-black italic text-[#00FFC2]">${selectedPlayer.bounty || '7,500'}</div>
              </div>
           </div>
         </div>
 
-        <div className="flex-1 flex overflow-hidden">
-          <div className="flex-1 relative bg-black shadow-[inset_0_0_100px_rgba(168,85,247,0.1)]">
-             <VideoMonitor room={`room-${selectedPlayer.player_id}`} name="Watcher_Focus" />
-             <div className="absolute bottom-6 left-6 z-20 bg-black/80 p-4 border-l-2 border-[#a855f7] backdrop-blur-md">
-                <div className="flex items-center gap-2 mb-1">
-                   <ShieldCheck size={12} className="text-[#a855f7]" />
-                   <div className="text-[8px] text-[#a855f7] font-black uppercase tracking-widest">Link_Secure</div>
-                </div>
-                <div className="text-white text-[10px] font-bold uppercase tracking-widest italic opacity-80">Sector: Matawinie // Node_{selectedPlayer.id}</div>
-             </div>
-          </div>
-          <aside className="w-80 border-l border-white/10 bg-[#050505] flex flex-col p-6 gap-6">
-             <div className="text-[10px] font-black text-gray-600 uppercase tracking-widest border-b border-white/5 pb-2 text-center">Tactical_Controls</div>
-             <button className="w-full py-5 bg-[#a855f7] text-white text-[10px] font-black uppercase tracking-[0.2em] hover:scale-[1.02] transition-all shadow-lg shadow-[#a855f7]/20 active:scale-95">
-                Boost Bounty +$500
-             </button>
-             <button className="w-full py-5 border border-red-500/30 text-red-500 text-[10px] font-black uppercase tracking-[0.2em] hover:bg-red-500/5 transition-all">
-                Terminate Link
-             </button>
-          </aside>
-        </div>
+        {/* SECTION DROITE : WAGERS & CHAT (FIXE) */}
+        <aside className="w-[380px] bg-black flex flex-col pointer-events-auto">
+           {/* Panneau de Paris */}
+           <div className="p-8 border-b border-white/5 bg-[#080808]">
+              <div className="flex items-center gap-2 text-[#00FFC2] font-black uppercase text-[10px] tracking-widest mb-6">
+                 <TrendingUp size={16} /> Wagers_Matrix
+              </div>
+              <div className="text-5xl font-black italic text-white mb-8">$28,451</div>
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                 <button className="py-4 bg-[#00FFC2]/5 border border-[#00FFC2]/20 text-[#00FFC2] text-[10px] font-black uppercase hover:bg-[#00FFC2] hover:text-black transition-all">Success 75%</button>
+                 <button className="py-4 bg-red-500/5 border border-red-500/20 text-red-500 text-[10px] font-black uppercase hover:bg-red-500 hover:text-black transition-all">Failure 25%</button>
+              </div>
+              <button className="w-full py-5 bg-white text-black font-black uppercase tracking-widest text-[11px] rounded-xl shadow-lg hover:bg-[#00FFC2] transition-colors">Place_Bet</button>
+           </div>
+
+           {/* Chat Transparent */}
+           <div className="flex-1 flex flex-col p-8 overflow-hidden relative">
+              <div className="flex items-center gap-2 text-gray-600 font-black uppercase text-[10px] tracking-widest mb-6">
+                 <MessageSquare size={16} /> Comms_Log
+              </div>
+              <div className="flex-1 overflow-y-auto space-y-5 mb-6 scrollbar-hide text-[11px]">
+                 <div className="animate-in fade-in slide-in-from-right-2">
+                    <span className="text-[#00FFC2] font-black mr-2 uppercase italic tracking-tighter">Operator_X:</span>
+                    <span className="text-white/80 leading-relaxed">Status confirmed. Target moving to secondary roof.</span>
+                 </div>
+                 <div className="animate-in fade-in slide-in-from-right-2">
+                    <span className="text-white/30 font-black mr-2 uppercase italic tracking-tighter">Ghost_User:</span>
+                    <span className="text-white/80">Don't look down. $200 on the jump.</span>
+                 </div>
+              </div>
+              <div className="relative">
+                 <input type="text" placeholder="TRANSMIT MESSAGE..." className="w-full bg-zinc-900 border border-white/5 p-4 rounded-xl text-[10px] text-white outline-none focus:border-[#00FFC2] transition-all" />
+                 <button className="absolute right-4 top-1/2 -translate-y-1/2 text-[#00FFC2] font-black text-[10px] uppercase">Send</button>
+              </div>
+           </div>
+        </aside>
       </main>
     );
   }
 
-  // --- MODE HUB ELITE (Sidebar + Grille) ---
+  // --- MODE GRILLE DE SÉLECTION (Watcher Hub) ---
   return (
-    <main className="h-screen bg-black font-mono text-gray-400 flex flex-col overflow-hidden">
-      
-      {/* HEADER */}
-      <header className="border-b border-white/10 px-8 py-5 flex justify-between items-center bg-black/40 backdrop-blur-md z-40">
-        <div className="flex gap-4 items-center">
-          <Zap size={18} className="text-[#a855f7] fill-[#a855f7]/20" />
-          <h1 className="text-2xl tracking-[0.3em] text-white font-black italic uppercase">Nord.Vantix <span className="text-[#a855f7] not-italic">:: Pulse</span></h1>
-          <span className="text-[9px] text-green-500 border border-green-500/20 px-3 py-1 ml-4 uppercase tracking-[0.2em] font-bold">Online</span>
+    <main className="h-[calc(100vh-64px)] bg-[#050505] flex flex-col p-10 overflow-y-auto scrollbar-hide">
+      <div className="flex justify-between items-end border-b border-white/5 pb-8 mb-12">
+        <div>
+           <h2 className="text-6xl tracking-tighter text-white font-black uppercase italic leading-none">Watcher_Hub</h2>
+           <p className="text-[10px] text-[#00FFC2] font-bold tracking-[0.5em] mt-2 uppercase italic">Scanning Global Nodes...</p>
         </div>
-        
-        <div className="hidden lg:flex relative items-center">
-           <Search size={14} className="absolute left-4 text-gray-600" />
-           <input type="text" placeholder="Search_Node..." className="bg-[#0a0a0a] border border-white/5 text-[10px] pl-12 pr-4 py-2.5 w-80 focus:border-[#a855f7] outline-none transition-all" />
-        </div>
-
         <div className="text-right">
-          <div className="text-[8px] text-gray-600 uppercase tracking-widest mb-1 font-bold text-right">Nodes_Detected</div>
-          <div className="text-4xl text-white font-black italic tracking-tighter leading-none">{activePlayers.length.toString().padStart(2, '0')}</div>
+           <div className="text-[9px] text-gray-500 uppercase font-black mb-1 tracking-widest">Active_Nodes</div>
+           <div className="text-5xl font-black italic text-white leading-none tabular-nums">{activePlayers.length.toString().padStart(2, '0')}</div>
         </div>
-      </header>
-
-      <div className="flex flex-1 overflow-hidden">
-        
-        {/* SIDEBAR TACTIQUE */}
-        <aside className="w-72 border-r border-white/10 bg-[#020202] py-8 px-6 flex flex-col justify-between z-30">
-          <nav className="space-y-3">
-             {[
-               { icon: LayoutDashboard, name: 'Dashboard', active: true },
-               { icon: Globe, name: 'Global Feed' },
-               { icon: History, name: 'History' },
-               { icon: Activity, name: 'Market Pulse' }
-             ].map((item) => (
-               <button key={item.name} className={`w-full flex items-center gap-4 px-4 py-4 rounded-lg text-[10px] font-black tracking-[0.2em] uppercase transition-all ${item.active ? 'bg-[#a855f7]/10 text-[#a855f7] border border-[#a855f7]/30 shadow-[0_0_15px_rgba(168,85,247,0.1)]' : 'text-gray-600 hover:text-white hover:bg-white/5'}`}>
-                 <item.icon size={16} /> {item.name}
-               </button>
-             ))}
-          </nav>
-          
-          <button className="w-full py-5 border border-[#facc15]/30 text-[#facc15] rounded-xl text-[10px] font-black tracking-[0.2em] uppercase hover:bg-[#facc15] hover:text-black transition-all flex items-center justify-center gap-3">
-            <DollarSign size={16} /> [ Deposit_Funds ]
-          </button>
-        </aside>
-
-        {/* CONTENU PRINCIPAL */}
-        <section className="flex-1 bg-[#050505] p-10 overflow-y-auto relative scrollbar-hide">
-          <div className="flex justify-between items-end border-b border-white/5 pb-6 mb-12">
-             <h2 className="text-5xl tracking-[0.2em] text-white font-black uppercase italic italic opacity-90">Watcher Hub</h2>
-             <div className="text-[9px] text-gray-700 tracking-[0.5em] uppercase">Matawinie // Sector_04</div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-10">
-            {activePlayers.map((player) => (
-              <div 
-                key={player.id}
-                onClick={() => setSelectedPlayer(player)}
-                className="cursor-pointer group relative border border-white/10 aspect-video hover:border-[#a855f7] transition-all bg-black overflow-hidden shadow-2xl hover:scale-[1.03] hover:shadow-[#a855f7]/10"
-              >
-                <VideoMonitor room={`room-${player.player_id}`} name="Grid_Preview" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/40 z-10 opacity-60 group-hover:opacity-30 transition-opacity" />
-                
-                <div className="absolute inset-0 p-5 flex flex-col justify-between z-20 pointer-events-none">
-                  <div className="flex justify-between items-start">
-                    <span className="text-[10px] font-black text-white bg-black/80 px-3 py-1.5 border border-white/10 uppercase italic">ID: {player.player_id}</span>
-                    <div className="flex items-center gap-2 bg-black/60 px-3 py-1.5 border border-red-500/20">
-                       <span className="text-red-500 text-[10px] font-black uppercase animate-pulse">Live</span>
-                       <div className="w-2 h-2 bg-red-500 rounded-full animate-ping" />
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-[8px] text-gray-500 uppercase font-black tracking-widest mb-1">Current_Bounty</div>
-                    <div className="text-3xl text-[#facc15] font-black italic tracking-tighter drop-shadow-2xl tabular-nums italic">${player.bounty || '4,500'}</div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* BACKGROUND DECORATION */}
-          <div className="absolute inset-0 bg-[linear-gradient(to_right,#111_1px,transparent_1px),linear-gradient(to_bottom,#111_1px,transparent_1px)] bg-[size:60px_60px] pointer-events-none opacity-20 [mask-image:radial-gradient(ellipse_at_center,black,transparent)]" />
-        </section>
       </div>
 
-      {/* FOOTER TICKER */}
-      <footer className="w-full bg-[#020202] border-t border-white/10 py-4 overflow-hidden z-40">
-         <div className="animate-ticker whitespace-nowrap flex gap-12 text-[10px] text-gray-600 font-bold uppercase tracking-[0.3em]">
-            <span>[LOG] {activePlayers.length} Nodes online in sector_04</span>
-            <span className="text-[#a855f7]">// Signal_Encryption: AES-256 //</span>
-            <span>[PULSE] System Stable // Uplink: 14ms //</span>
-            <span className="text-[#facc15]">Market_Pulse: Gold $2,341.50 // BTC $69,420 //</span>
-            <span>[WATCHER] Welcome to Nord.Vantix Command Center //</span>
-         </div>
-      </footer>
-
-      <style jsx global>{`
-        @keyframes ticker { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-        .animate-ticker { animation: ticker 40s linear infinite; display: inline-flex; }
-        .scrollbar-hide::-webkit-scrollbar { display: none; }
-      `}</style>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+        {activePlayers.map((player) => (
+          <div 
+            key={player.id}
+            onClick={() => setSelectedPlayer(player)}
+            className="group relative border border-white/5 aspect-video bg-black overflow-hidden hover:border-[#00FFC2]/50 transition-all cursor-pointer shadow-2xl hover:scale-[1.02]"
+          >
+            <div className="absolute inset-0 z-0 bg-zinc-900 animate-pulse" />
+            
+            {/* Card UI */}
+            <div className="absolute inset-0 p-6 flex flex-col justify-between z-10 pointer-events-none">
+              <div className="flex justify-between items-start">
+                <span className="bg-black/80 px-2 py-1 border border-white/10 text-[9px] font-black uppercase italic tracking-widest text-white">ID_{player.player_id}</span>
+                <div className="flex items-center gap-2">
+                   <div className="w-2 h-2 rounded-full bg-red-600 animate-ping" />
+                   <span className="text-red-500 text-[9px] font-black uppercase italic">Live</span>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-[8px] text-gray-500 uppercase font-black mb-1">Current_Bounty</div>
+                <div className="text-3xl text-[#00FFC2] font-black italic tracking-tighter">${player.bounty || '4,500'}</div>
+              </div>
+            </div>
+            
+            {/* Hover Scanline Effect */}
+            <div className="absolute inset-0 bg-[#00FFC2]/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+          </div>
+        ))}
+      </div>
     </main>
   );
 }
