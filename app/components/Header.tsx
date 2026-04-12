@@ -8,8 +8,8 @@ export default function Header() {
 
   const navItems = [
     { name: 'HOME', path: '/terminal' }, // Tu peux garder tes anciens paths
-    { name: 'WATCHER', path: '/watcher' },
-    { name: 'PLAYERS', path: '/players' },
+    { name: 'WATCHER', path: '/terminal' },
+    { name: 'PLAYERS', path: '/operator' },
     { name: 'RANKINGS', path: '/rankings' },
   ];
 
