@@ -1,7 +1,7 @@
 "use client";
 import { useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { Shield, Lock, User, Zap, ChevronRight } from 'lucide-react';
+import { Shield, Lock, User, Zap, ChevronRight, LogIn } from 'lucide-react';
 import Link from 'next/link';
 
 const supabase = createClient(
@@ -16,27 +16,7 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("AWAITING_INPUT");
 
-  // --- AUTHENTIFICATION GOOGLE ---
-  const handleGoogleAuth = async () => {
-    setStatus("INITIATING_OAUTH_PROTOCOL...");
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/terminal`,
-        queryParams: {
-          access_type: 'offline',
-          prompt: 'consent',
-        },
-      },
-    });
-
-    if (error) {
-      console.error("Google Auth Error:", error);
-      setStatus("ERROR: OAUTH_FAILED // " + error.message.toUpperCase());
-    }
-  };
-
-  // --- ENRÔLEMENT CLASSIQUE ---
+  // --- ENRÔLEMENT (CRÉATION DE COMPTE) ---
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password || !username) {
@@ -54,12 +34,36 @@ export default function RegisterPage() {
 
     if (error) {
       console.error("Auth Error:", error);
-      setStatus("ERROR: ACCESS_DENIED // " + error.message.toUpperCase());
+      setStatus("ERROR: ENLISTMENT_FAILED // " + error.message.toUpperCase());
       setLoading(false);
     } else {
       setStatus("SUCCESS: AGENT_ENLISTED");
-      console.log("Registered:", data);
       setTimeout(() => window.location.href = "/terminal", 2000);
+    }
+  };
+
+  // --- CONNEXION (LOGIN EXISTANT) ---
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) {
+       setStatus("ERROR: CREDENTIALS_REQUIRED");
+       return;
+    }
+    setLoading(true);
+    setStatus("VERIFYING_CLEARANCE...");
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      console.error("Login Error:", error);
+      setStatus("ERROR: ACCESS_DENIED // INVALID_CREDENTIALS");
+      setLoading(false);
+    } else {
+      setStatus("SUCCESS: CLEARANCE_GRANTED");
+      setTimeout(() => window.location.href = "/terminal", 1000);
     }
   };
 
@@ -90,28 +94,8 @@ export default function RegisterPage() {
           </span>
         </div>
 
-        {/* --- GOOGLE AUTH BUTTON --- */}
-        <button 
-          onClick={handleGoogleAuth}
-          type="button"
-          className="w-full py-4 mb-6 bg-white text-black font-black uppercase text-[10px] tracking-[0.2em] hover:bg-gray-200 transition-all flex items-center justify-center gap-3 active:scale-95 shadow-md"
-        >
-          {/* Logo Google en SVG Natif */}
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z" />
-          </svg>
-          Execute_Google_Uplink
-        </button>
-
-        {/* SÉPARATEUR */}
-        <div className="flex items-center mb-6 opacity-50">
-          <div className="flex-1 border-t border-gray-600"></div>
-          <span className="px-4 text-[8px] text-gray-400 uppercase tracking-widest">OR_MANUAL_ENLISTMENT</span>
-          <div className="flex-1 border-t border-gray-600"></div>
-        </div>
-
-        {/* FORMULAIRE CLASSIQUE */}
-        <form onSubmit={handleRegister} className="space-y-4">
+        {/* FORMULAIRE MANUEL */}
+        <form className="space-y-4">
           <div className="relative">
             <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" size={16} />
             <input 
@@ -145,13 +129,26 @@ export default function RegisterPage() {
             />
           </div>
 
-          <button 
-            disabled={loading}
-            className="w-full py-5 mt-2 bg-[#a855f7] text-white font-black uppercase text-[10px] tracking-[0.3em] hover:bg-[#b975ff] transition-all flex items-center justify-center gap-2 group shadow-lg shadow-[#a855f7]/20 active:scale-95"
-          >
-            {loading ? "PROCESSING..." : "INITIALIZE_ENLISTMENT"}
-            <ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />
-          </button>
+          <div className="flex gap-4 pt-2">
+            <button 
+              onClick={handleLogin}
+              disabled={loading}
+              type="button"
+              className="flex-1 py-4 bg-transparent border border-gray-700 text-gray-400 font-black uppercase text-[10px] tracking-[0.2em] hover:text-white hover:border-white transition-all flex items-center justify-center gap-2 active:scale-95"
+            >
+              <LogIn size={14} /> LOGIN
+            </button>
+
+            <button 
+              onClick={handleRegister}
+              disabled={loading}
+              type="button"
+              className="flex-[2] py-4 bg-[#a855f7] text-white font-black uppercase text-[10px] tracking-[0.2em] hover:bg-[#b975ff] transition-all flex items-center justify-center gap-2 group shadow-lg shadow-[#a855f7]/20 active:scale-95"
+            >
+              {loading ? "PROCESSING..." : "ENLIST"}
+              <ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />
+            </button>
+          </div>
         </form>
 
         <div className="mt-8 text-center pt-6 border-t border-white/5">
