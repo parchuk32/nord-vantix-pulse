@@ -94,12 +94,12 @@ export default function PulseLandingPage() {
               <Eye size={14} /> WATCHER
             </Link>
             
-            {/* BOUTON PLAYER (Dynamique selon session) */}
+            {/* BOUTON PLAYER : Garde le texte fixe, mais route dynamiquement */}
             <button 
-              onClick={() => isLoggedIn ? router.push('/terminal') : router.push('/register')}
+              onClick={() => isLoggedIn ? router.push('/operator') : router.push('/register')}
               className="px-14 py-4 border-2 border-white/10 bg-white/5 text-gray-400 font-black uppercase text-[10px] tracking-[0.4em] rounded-full hover:text-white hover:border-white transition-all active:scale-95 flex items-center gap-2"
             >
-              <ChevronRight size={14} /> {isLoggedIn ? "RESUME_OPS" : "PLAYER_ENLIST"}
+              <ChevronRight size={14} /> PLAYER
             </button>
           </div>
         </div>
@@ -128,7 +128,7 @@ export default function PulseLandingPage() {
           
           <div className="flex gap-10 text-[10px] font-black text-gray-500 uppercase tracking-widest">
             <button onClick={() => addLog("ENCRYPTION: AES-256-GCM")}>ENCRYPTION: <span className="text-green-500">AES-256</span></button>
-            <button onClick={() => addLog("LOCATION: LANAUDIERE_NODE")}>SECTOR: <span className="text-white">MATAWINIE</span></button>
+            <button onClick={() => addLog("LOCATION: MATAWINIE_NODE")}>SECTOR: <span className="text-white">MATAWINIE</span></button>
           </div>
 
           <div className="flex gap-4 text-gray-600">
