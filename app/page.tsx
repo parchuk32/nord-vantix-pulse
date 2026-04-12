@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
 import { 
   Shield, Lock, Activity, Settings, Users, Target, 
-  Signal, Eye, ChevronRight, Terminal, database, RefreshCw 
+  Signal, Eye, ChevronRight, Terminal, Database, RefreshCw 
 } from "lucide-react";
 
 const supabase = createClient(
