@@ -7,7 +7,7 @@ import { LiveKitRoom, useTracks, VideoTrack } from '@livekit/components-react';
 import { Track } from 'livekit-client';
 import { 
   Activity, LayoutDashboard, Settings, MessageSquare, 
-  Wallet, X, Zap, Target, Users, TrendingUp
+  Wallet, X, Zap, Target, Users, TrendingUp, Shield, ChevronRight
 } from 'lucide-react';
 import '@livekit/components-styles';
 
@@ -39,12 +39,13 @@ export default function PulseOperatorHub() {
   const [isLive, setIsLive] = useState(false);
   const [activeTab, setActiveTab] = useState<'hub' | 'wallet' | 'settings'>('hub');
   
-  // Données de mission (Identiques à la photo)
-  const [mission] = useState({
+  // États pour la mission personnalisable
+  const [mission, setMission] = useState({
     title: "Crane Height Challenge",
     payout: 7500,
     progress: 62,
-    tasks: ["JUMP TO ADJACENT ROOF", "CLIMB TO TOP OF CRANE"]
+    tasks: ["JUMP TO ADJACENT ROOF", "CLIMB TO TOP OF CRANE"],
+    risk: "EXTREME"
   });
 
   const [stats] = useState({ watchers: 25478, pool: 28451.25, balance: 2140.75 });
@@ -60,10 +61,10 @@ export default function PulseOperatorHub() {
   if (!user) return null;
 
   return (
-    <div className="h-[calc(100vh-64px)] w-full flex overflow-hidden bg-[#050505] font-mono relative">
+    <div className="h-[calc(100vh-64px)] w-full flex overflow-hidden bg-[#050505] font-mono relative text-white">
       <div className="crt-overlay pointer-events-none z-50 opacity-10" />
       
-      {/* --- SIDEBAR DE GAUCHE (Navigation Hub) --- */}
+      {/* --- SIDEBAR GAUCHE (Navigation Hub) --- */}
       {!isLive && (
         <aside className="w-64 border-r border-white/5 bg-black flex flex-col p-6 gap-2">
           <button onClick={() => setActiveTab('hub')} 
@@ -87,54 +88,107 @@ export default function PulseOperatorHub() {
         </aside>
       )}
 
-      {/* --- ZONE DE CONTENU PRINCIPALE --- */}
+      {/* --- ZONE PRINCIPALE --- */}
       <section className="flex-1 relative bg-black flex flex-col overflow-hidden">
         
-        {/* SETUP HUB (Avant de lancer le live) */}
+        {/* --- SETUP HUB : TACTICAL BRIEFING ROOM --- */}
         {!isLive && activeTab === 'hub' && (
-          <div className="p-12 max-w-5xl mx-auto w-full space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
-             <h2 className="text-6xl font-black uppercase italic tracking-tighter text-white/90">Operator Setup</h2>
-             
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {/* Profil */}
-                <div className="bg-zinc-900/20 border border-white/5 p-8 rounded-2xl flex items-center gap-8 backdrop-blur-sm">
-                   <div className="w-32 h-32 rounded-xl bg-zinc-800 border-2 border-[#00FFC2]/30 overflow-hidden relative">
-                      <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`} alt="Agent" className="grayscale object-cover" />
-                   </div>
-                   <div>
-                      <div className="text-[10px] text-[#00FFC2] font-black tracking-[0.4em] uppercase mb-1">Status: Active</div>
-                      <div className="text-3xl font-black italic uppercase leading-none">{user.email?.split('@')[0]}</div>
-                      <button className="mt-4 text-[9px] font-black uppercase tracking-widest text-gray-500 hover:text-white transition-colors">Modify Intel</button>
-                   </div>
+          <div className="p-10 max-w-6xl mx-auto w-full space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-1000">
+            <div className="flex justify-between items-end border-b border-[#00FFC2]/20 pb-6">
+              <div>
+                <h2 className="text-5xl font-black uppercase italic tracking-tighter text-white">Mission_Briefing</h2>
+                <p className="text-[10px] text-[#00FFC2] font-bold tracking-[0.3em] mt-2 italic uppercase">Awaiting Operator Configuration...</p>
+              </div>
+              <div className="text-right">
+                <span className="text-[9px] text-gray-500 block uppercase">Uplink_Clock</span>
+                <span className="text-xl font-black text-white">{new Date().toLocaleTimeString()}</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <div className="lg:col-span-2 space-y-6">
+                <div className="bg-zinc-900/10 border border-white/5 p-8 rounded-2xl backdrop-blur-sm space-y-8">
+                  <div className="grid grid-cols-2 gap-8">
+                    <div className="space-y-3">
+                      <label className="text-[10px] font-black uppercase text-gray-500 tracking-widest">Target_Objective</label>
+                      <select 
+                        onChange={(e) => setMission({...mission, title: e.target.value})}
+                        className="w-full bg-black border border-white/10 p-4 rounded-xl text-xs text-white outline-none focus:border-[#00FFC2] transition-all cursor-pointer appearance-none"
+                      >
+                        <option>CRANE_HEIGHT_CHALLENGE</option>
+                        <option>URBAN_EXTRACTION</option>
+                        <option>MERC_STORE_HEIST</option>
+                        <option>HIGH_SPEED_PURSUIT</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-3">
+                      <label className="text-[10px] font-black uppercase text-gray-500 tracking-widest">Risk_Level</label>
+                      <div className="flex gap-2">
+                        {['LOW', 'MID', 'EXTREME'].map((level) => (
+                          <button 
+                            key={level} 
+                            onClick={() => setMission({...mission, risk: level})}
+                            className={`flex-1 py-3 rounded-lg text-[9px] font-black border transition-all ${
+                              mission.risk === level 
+                                ? 'border-[#00FFC2] text-[#00FFC2] bg-[#00FFC2]/10' 
+                                : 'border-white/10 text-gray-500 hover:border-white/20'
+                            }`}
+                          >
+                            {level}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 pt-4">
+                    <label className="text-[10px] font-black uppercase text-gray-500 tracking-widest italic">Intel_Description (For Bot Analysis)</label>
+                    <textarea 
+                      placeholder="Describe your tactical route or specific stunts for verification..." 
+                      className="w-full h-32 bg-black border border-white/10 p-4 rounded-2xl text-xs text-white outline-none focus:border-[#00FFC2] transition-all resize-none"
+                    />
+                    <div className="flex items-center gap-2 text-[9px] text-[#00FFC2]/60 italic">
+                      <Shield size={12} /> Data cross-referenced via Vantix_Bot uplink.
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="bg-[#00FFC2]/5 border border-[#00FFC2]/20 p-8 rounded-2xl backdrop-blur-md relative overflow-hidden group shadow-lg">
+                  <div className="relative z-10">
+                    <div className="text-[10px] text-[#00FFC2] font-black uppercase tracking-widest mb-2">Estimated_Payout</div>
+                    <div className="text-5xl font-black italic text-white group-hover:scale-110 transition-transform duration-500">${mission.payout.toLocaleString()}</div>
+                    <div className="mt-6 space-y-2">
+                      <div className="flex justify-between text-[9px] font-bold text-gray-500 uppercase"><span>Rep_Gain</span> <span>+450</span></div>
+                      <div className="flex justify-between text-[9px] font-bold text-gray-500 uppercase"><span>Bot_Status</span> <span className="text-[#00FFC2]">READY</span></div>
+                    </div>
+                  </div>
+                  <Zap className="absolute -bottom-4 -right-4 w-32 h-32 text-[#00FFC2]/5 -rotate-12" />
                 </div>
 
-                {/* Balance */}
-                <div className="bg-zinc-900/20 border border-white/5 p-8 rounded-2xl backdrop-blur-sm">
-                   <div className="text-[10px] text-gray-500 uppercase tracking-widest mb-2">Available_Credits</div>
-                   <div className="text-5xl font-black italic text-[#00FFC2] shadow-[#00FFC2]/20 drop-shadow-lg">${stats.balance.toLocaleString()}</div>
-                </div>
-             </div>
-
-             {/* Bouton DEPLOY (Initialize Live) */}
-             <button 
-                onClick={() => setIsLive(true)}
-                className="group relative w-full py-12 bg-white text-black font-black text-3xl uppercase italic tracking-[0.5em] rounded-2xl overflow-hidden transition-all hover:scale-[1.01] active:scale-95 shadow-[0_0_50px_rgba(255,255,255,0.1)]"
-             >
-                <div className="relative z-10 flex flex-col items-center gap-2">
-                  <span className="group-hover:tracking-[0.7em] transition-all duration-500">Initialize Deployment</span>
-                  <span className="text-[10px] tracking-[0.2em] font-normal opacity-50">Secure Uplink via LiveKit Network</span>
-                </div>
-                <div className="absolute inset-0 bg-[#00FFC2] translate-y-[100%] group-hover:translate-y-0 transition-transform duration-500" />
-             </button>
+                <button 
+                  onClick={() => setIsLive(true)}
+                  className="w-full group relative overflow-hidden rounded-2xl shadow-[0_0_30px_rgba(0,255,194,0.15)] active:scale-[0.98] transition-all"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-[#00FFC2] to-emerald-400" />
+                  <div className="relative p-10 flex flex-col items-center gap-3">
+                    <span className="text-black font-black text-2xl uppercase italic tracking-[0.3em]">Lock_&_Deploy</span>
+                    <div className="flex items-center gap-2 text-[9px] text-black/60 font-black uppercase tracking-widest">
+                      <Activity size={12} /> Initialize Neural Uplink
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
-        {/* INTERFACE LIVE (Look identique à la photo) */}
+        {/* --- INTERFACE PLAYER (FULL SCREEN IMMERSIVE) --- */}
         {isLive && (
-          <div className="absolute inset-0 z-40 bg-black flex animate-in fade-in zoom-in-95 duration-500">
-            
-            {/* STREAM CENTRAL */}
-            <div className="flex-1 relative border-r border-white/5 overflow-hidden">
+          <div className="absolute inset-0 z-40 bg-black flex animate-in fade-in duration-500">
+            <div className="h-full w-full relative">
               <LiveKitRoom 
                 video={true} audio={true} 
                 token="TOKEN" 
@@ -145,108 +199,92 @@ export default function PulseOperatorHub() {
                 <VideoRenderer />
               </LiveKitRoom>
 
-              {/* HUD OVERLAY (Comme sur l'image) */}
-              <div className="absolute inset-0 z-10 p-8 flex flex-col justify-between pointer-events-none">
-                <div className="flex justify-between items-start">
-                  <div className="flex gap-3">
-                    <div className="bg-red-600 px-3 py-1 text-[10px] font-black text-white flex items-center gap-2 rounded-sm shadow-xl shadow-red-900/30">
-                      <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /> LIVE
-                    </div>
-                    <div className="bg-black/60 backdrop-blur-md px-3 py-1 text-[10px] font-bold text-[#00FFC2] border border-white/10 rounded-sm">
-                      LOW LATENCY // {stats.watchers.toLocaleString()} WATCHERS
-                    </div>
+              <div className="absolute inset-0 z-10 p-10 flex justify-between pointer-events-none">
+                {/* HUD GAUCHE */}
+                <div className="flex flex-col justify-between h-full w-full max-w-sm">
+                  <div className="bg-red-600 px-3 py-1 text-[10px] font-black flex items-center gap-2 rounded-sm self-start shadow-xl shadow-red-900/40">
+                    <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /> LIVE_OPS
                   </div>
-                  <div className="text-4xl font-black italic text-[#00FFC2] drop-shadow-[0_0_15px_rgba(0,255,194,0.4)]">
-                    ${stats.balance.toLocaleString()}
+
+                  {/* Mission Box (Transparent Ghost) */}
+                  <div className="bg-black/30 backdrop-blur-md border-l-4 border-[#00FFC2] p-6 rounded-r-xl pointer-events-auto">
+                    <div className="text-[9px] text-[#00FFC2] font-black tracking-widest mb-1 uppercase italic">Objective_Focus</div>
+                    <h3 className="text-2xl font-black uppercase italic mb-4 tracking-tighter leading-none">{mission.title}</h3>
+                    <div className="space-y-3">
+                      <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
+                        <div className="h-full bg-[#00FFC2] shadow-[0_0_10px_#00FFC2]" style={{ width: `${mission.progress}%` }} />
+                      </div>
+                      <div className="flex justify-between text-[10px] font-black uppercase">
+                        <span className="text-white/40 italic">{mission.progress}% DONE</span>
+                        <span className="text-[#00FFC2]">${mission.payout}</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                {/* Challenge Info Panel */}
-                <div className="max-w-md bg-black/80 backdrop-blur-xl border border-white/10 p-6 rounded-2xl pointer-events-auto">
-                   <div className="flex justify-between items-start mb-4">
-                      <div>
-                        <div className="text-[9px] text-gray-500 uppercase font-black tracking-widest">Active Challenge</div>
-                        <h3 className="text-2xl font-black uppercase italic tracking-tighter">{mission.title}</h3>
+                {/* HUD DROITE */}
+                <div className="flex flex-col justify-between h-full w-[350px]">
+                  <div className="text-right flex flex-col items-end">
+                    <div className="text-6xl font-black italic text-[#00FFC2] drop-shadow-[0_0_20px_rgba(0,255,194,0.6)]">
+                      ${stats.balance.toLocaleString()}
+                    </div>
+                    <div className="bg-black/40 backdrop-blur-md px-3 py-1 mt-2 text-[10px] font-black text-white/60 border border-white/10 rounded-sm">
+                      {stats.watchers.toLocaleString()} VIEWERS
+                    </div>
+                  </div>
+
+                  {/* CHAT TRANSPARENT (GHOST MODE) */}
+                  <div className="h-[400px] flex flex-col bg-black/20 backdrop-blur-xl border border-white/10 rounded-2xl pointer-events-auto overflow-hidden shadow-2xl">
+                    <div className="p-3 border-b border-white/10 bg-white/5 flex items-center gap-2">
+                      <MessageSquare size={14} className="text-[#00FFC2]" />
+                      <span className="text-[9px] font-black uppercase tracking-widest text-white/50">Tactical_Comms</span>
+                    </div>
+                    
+                    <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide text-[11px]">
+                      <div className="animate-in fade-in slide-in-from-right-2">
+                        <span className="text-[#00FFC2] font-black mr-2 uppercase tracking-tighter italic">Operator_Bot:</span>
+                        <span className="text-white/80">Uplink verified. Mission is go.</span>
                       </div>
-                      <div className="text-right">
-                        <div className="text-[8px] text-gray-500 uppercase font-black">Payout</div>
-                        <div className="text-xl font-black text-[#00FFC2]">${mission.payout.toLocaleString()}</div>
+                      <div className="animate-in fade-in slide-in-from-right-2">
+                        <span className="text-white/30 font-black mr-2 uppercase tracking-tighter italic">Vantix_Spectre:</span>
+                        <span className="text-white/80">Watching the perimeter.</span>
                       </div>
-                   </div>
-                   <div className="space-y-3">
-                      <div className="flex justify-between items-end">
-                        <span className="text-[10px] font-black text-[#00FFC2] uppercase tracking-[0.2em] animate-pulse">Final Task</span>
-                        <span className="text-2xl font-black italic">{mission.progress}%</span>
+                    </div>
+
+                    <div className="p-4 bg-black/40 border-t border-white/5">
+                      <div className="relative">
+                        <input 
+                          type="text" 
+                          placeholder="TRANSMIT..." 
+                          className="w-full bg-white/5 border border-white/10 p-3 rounded text-[10px] text-white outline-none focus:border-[#00FFC2]/50 transition-all"
+                        />
+                        <button className="absolute right-3 top-1/2 -translate-y-1/2 text-[#00FFC2] font-black text-[9px]">SEND</button>
                       </div>
-                      <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
-                        <div className="h-full bg-[#00FFC2] shadow-[0_0_15px_#00FFC2] transition-all duration-1000" style={{ width: `${mission.progress}%` }} />
-                      </div>
-                      <div className="pt-2">
-                         {mission.tasks.map((task, i) => (
-                           <div key={i} className="text-[9px] font-bold text-gray-400 uppercase border-l border-[#00FFC2] pl-3 mb-1">
-                              {task} // <span className="text-[#00FFC2]">COMPLETED</span>
-                           </div>
-                         ))}
-                      </div>
-                   </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <button onClick={() => setIsLive(false)} className="absolute top-6 right-6 z-50 p-2 bg-black/40 border border-white/10 rounded-full hover:bg-red-500 transition-all pointer-events-auto">
-                <X size={20}/>
+              {/* ABORT MISSION (Centered Top) */}
+              <button 
+                onClick={() => setIsLive(false)} 
+                className="absolute top-10 left-1/2 -translate-x-1/2 z-50 px-8 py-2 bg-black/60 border border-red-500/30 text-red-500/60 hover:text-red-500 hover:border-red-500 transition-all text-[9px] font-black uppercase rounded-full pointer-events-auto tracking-[0.4em] backdrop-blur-sm"
+              >
+                Abort_Link
               </button>
             </div>
-
-            {/* SIDEBAR DROITE (Wagers & Chat) */}
-            <aside className="w-[380px] bg-black flex flex-col border-l border-white/5">
-               {/* Wagers Section */}
-               <div className="p-8 border-b border-white/5 bg-[#080808]">
-                  <div className="flex items-center gap-2 text-[#00FFC2] font-black uppercase text-[10px] tracking-widest mb-6">
-                     <TrendingUp size={16} /> Wagers Pool
-                  </div>
-                  <div className="text-5xl font-black italic text-white mb-8">${stats.pool.toLocaleString()}</div>
-                  
-                  <div className="space-y-6">
-                     <div className="grid grid-cols-2 gap-4">
-                        <button className="py-4 bg-[#00FFC2]/5 border border-[#00FFC2]/20 text-[#00FFC2] text-[10px] font-black uppercase hover:bg-[#00FFC2] hover:text-black transition-all">Success 75%</button>
-                        <button className="py-4 bg-red-500/5 border border-red-500/20 text-red-500 text-[10px] font-black uppercase hover:bg-red-500 hover:text-black transition-all">Failure 25%</button>
-                     </div>
-                     <button className="w-full py-5 bg-white text-black font-black uppercase tracking-[0.2em] text-xs rounded-xl hover:bg-[#00FFC2] transition-colors shadow-lg shadow-white/5">Place Bet</button>
-                  </div>
-               </div>
-
-               {/* Chat Section */}
-               <div className="flex-1 flex flex-col p-8 overflow-hidden">
-                  <div className="flex items-center gap-2 text-gray-600 font-black uppercase text-[10px] tracking-widest mb-6">
-                     <MessageSquare size={16} /> Live_Comms
-                  </div>
-                  <div className="flex-1 overflow-y-auto space-y-5 mb-6 scrollbar-hide">
-                     <div className="flex gap-3">
-                        <div className="w-8 h-8 rounded bg-[#00FFC2]/10 flex items-center justify-center text-[9px] font-black text-[#00FFC2]">TX</div>
-                        <div>
-                           <div className="text-[10px] font-black uppercase text-[#00FFC2]">Operator_X <span className="text-gray-600 text-[8px] ml-2">21:58</span></div>
-                           <div className="text-xs text-gray-400 mt-1">Status confirmed. Objective in sight.</div>
-                        </div>
-                     </div>
-                  </div>
-                  <div className="relative">
-                     <input type="text" placeholder="TRANSMIT MESSAGE..." className="w-full bg-zinc-900 border border-white/5 p-4 rounded-xl text-[10px] outline-none focus:border-[#00FFC2] transition-all" />
-                     <button className="absolute right-4 top-1/2 -translate-y-1/2 text-[#00FFC2] font-black text-[10px]">SEND</button>
-                  </div>
-               </div>
-            </aside>
           </div>
         )}
       </section>
 
-      {/* FOOTER TACTIQUE */}
-      <footer className="h-8 absolute bottom-0 w-full border-t border-white/5 bg-black/80 backdrop-blur-md flex justify-between items-center px-6 z-[60]">
+      {/* --- FOOTER TACTIQUE --- */}
+      <footer className="h-8 absolute bottom-0 w-full border-t border-white/5 bg-black/90 backdrop-blur-md flex justify-between items-center px-6 z-[60]">
         <div className="flex gap-8 text-[7px] font-black text-gray-600 uppercase tracking-widest">
            <div>Uplink: <span className="text-[#00FFC2]">STABLE</span></div>
-           <div>Mode: <span className="text-white">OPERATOR_HUB</span></div>
+           <div>Mode: <span className="text-white uppercase italic">{isLive ? "Tactical_Ops" : "Operator_Hub"}</span></div>
         </div>
-        <div className="text-[7px] font-black text-gray-600 uppercase tracking-widest">
-           &copy; 2026 NORD.VANTIX // SYSTEM_ID: {user.id.slice(0,8)}
+        <div className="text-[7px] font-black text-gray-500 uppercase tracking-widest">
+           &copy; 2026 NORD.VANTIX // SYS_ID: {user.id.slice(0,12)}
         </div>
       </footer>
     </div>
