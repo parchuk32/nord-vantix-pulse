@@ -1,12 +1,14 @@
 import { create } from 'zustand';
 
 interface DeployState {
-  // --- ÉTATS DE DÉPLOIEMENT ---
+  // --- ÉTATS DE DÉPLOIEMENT & LIVEKIT ---
   hardwareReady: boolean;
   networkStable: boolean;
   aiApproved: boolean;
   safetyValid: boolean;
   isLive: boolean;
+  streamToken: string | null;
+  roomName: string | null;
   
   // --- DONNÉES DE MISSION ---
   logs: string[];
@@ -14,29 +16,20 @@ interface DeployState {
   payout: number;
   signatureData: string | null; // Stocke l'image base64 de la signature
   
-  // --- RÉGLAGES RÉELS (PROD) ---
+  // --- RÉGLAGES RÉELS (PROD - 8 MODULES) ---
   settings: {
-    account: { 
-      username: string; 
-      status: string; 
-      reputation: number;
-      bio: string;
-    };
-    notifications: { alerts: boolean; tacticalComms: boolean };
-    appearance: { 
-      accentColor: string; 
-      crtEffect: boolean; 
-      quality: string;
-      scanlineIntensity: number; 
-    };
-    privacy: { 
-      stealthMode: boolean; 
-      dataEncryption: string;
-      showLocation: boolean;
-    };
+    general: { username: string; email: string; bio: string; language: string };
+    security: { mfaEnabled: boolean; lastPasswordChange: string; securityScore: number };
+    billing: { plan: string; cardLast4: string; nextBilling: string };
+    notifications: { push: boolean; email: boolean; tacticalComms: boolean };
+    apps: { discordLinked: boolean; telegramLinked: boolean; apiKey: string };
+    branding: { accentColor: string; crtEffect: boolean; scanlineIntensity: number };
+    referral: { code: string; recruits: number; totalEarned: number };
+    sharing: { publicProfile: boolean; anonymousMode: boolean };
   };
 
   // --- ACTIONS ---
+  setToken: (token: string, room: string) => void;
   setModuleStatus: (module: string, status: boolean) => void;
   addLog: (msg: string) => void;
   setRisk: (level: 'LOW' | 'MID' | 'EXTREME') => void;
@@ -52,33 +45,28 @@ export const useDeployStore = create<DeployState>((set, get) => ({
   aiApproved: false,
   safetyValid: false,
   isLive: false,
+  streamToken: null,
+  roomName: null,
   signatureData: null,
   
-  logs: ["[SYSTEM] Pulse_OS v4.0.2 initialized... Ready for uplink."],
+  logs: ["[SYSTEM] Pulse_OS v4.0.2 - Full Enterprise Node Online."],
   riskLevel: 'MID',
   payout: 7500,
 
-  // Données Utilisateur & Préférences (Celles que tes inputs modifient)
+  // Données Utilisateur & Préférences (Les 8 colonnes max out)
   settings: {
-    account: { 
-      username: 'TRISTAN', 
-      status: 'OPERATOR_ELITE', 
-      reputation: 450,
-      bio: 'CLANDESTINE_OPERATOR' 
-    },
-    notifications: { alerts: true, tacticalComms: true },
-    appearance: { 
-      accentColor: '#00FFC2', 
-      crtEffect: true, 
-      quality: '4K_ULTRA',
-      scanlineIntensity: 0.5 
-    },
-    privacy: { 
-      stealthMode: false, 
-      dataEncryption: 'AES-256-GCM',
-      showLocation: false 
-    },
+    general: { username: 'TRISTAN', email: 'ops@nord-vantix.com', bio: 'OPERATOR_ELITE', language: 'EN' },
+    security: { mfaEnabled: true, lastPasswordChange: '2026-04-01', securityScore: 90 },
+    billing: { plan: 'ULTRA_OPERATOR', cardLast4: '8842', nextBilling: '2026-05-12' },
+    notifications: { push: true, email: false, tacticalComms: true },
+    apps: { discordLinked: true, telegramLinked: false, apiKey: 'px_live_992x8vM4qL' },
+    branding: { accentColor: '#00FFC2', crtEffect: true, scanlineIntensity: 0.5 },
+    referral: { code: 'NORD-VANTIX-001', recruits: 12, totalEarned: 1250 },
+    sharing: { publicProfile: true, anonymousMode: false },
   },
+
+  // Injection du Token pour LiveKit
+  setToken: (token, room) => set({ streamToken: token, roomName: room }),
 
   // Logique des Logs : On garde les 15 derniers pour la lisibilité
   addLog: (msg) => set((s) => ({ 
