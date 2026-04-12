@@ -2,17 +2,19 @@ import type { Metadata } from "next";
 import { Share_Tech_Mono } from "next/font/google";
 import "./globals.css";
 
+// 1. CHARGEMENT OPTIMISÉ DE LA POLICE TACTIQUE
 const shareTechMono = Share_Tech_Mono({
   weight: "400",
   subsets: ["latin"],
-  variable: "--font-share-tech",
+  variable: "--font-mono", // On utilise ce nom pour que ton Tailwind le reconnaisse direct
   display: "swap",
 });
 
+// 2. MÉTADONNÉES DU RÉSEAU
 export const metadata: Metadata = {
   title: "NORD.VANTIX :: PULSE — Tactical Operations Hub",
   description: "Clandestine tactical operations streaming hub.",
-  robots: { index: false, follow: false },
+  robots: { index: false, follow: false }, // Indétectable par les moteurs de recherche
   other: {
     "theme-color": "#000008",
   },
@@ -22,16 +24,11 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
+    // 3. INJECTION DANS LE HTML
     <html lang="en" className={shareTechMono.variable}>
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:ital,wght@1,800;1,900&display=swap"
-          rel="stylesheet"
-        />
-      </head>
-      <body>{children}</body>
+      <body className="font-mono bg-black text-white antialiased overflow-x-hidden">
+        {children}
+      </body>
     </html>
   );
 }
