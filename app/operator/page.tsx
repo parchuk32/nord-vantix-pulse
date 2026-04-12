@@ -9,7 +9,7 @@ import {
   Shield, Activity, Target, Terminal, Database, Map, Eye, 
   Radio, LayoutDashboard, CreditCard, Settings, MessageSquare, 
   Play, Square, Send, Wallet, Lock, Crosshair, AlertTriangle, 
-  Unlock, User, Bell, Volume2, Palette, X, Maximize2
+  Unlock, User, Bell, Volume2, Palette, X, Maximize2, ChevronRight
 } from 'lucide-react';
 import '@livekit/components-styles';
 
