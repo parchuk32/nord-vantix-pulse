@@ -4,12 +4,10 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
 import SignatureCanvas from 'react-signature-canvas';
-import { LiveKitRoom, useTracks, VideoTrack } from '@livekit/components-react';
-import { Track } from 'livekit-client';
+import { LiveKitRoom } from '@livekit/components-react';
 import { 
-  Activity, LayoutDashboard, Settings, Wallet, Zap, 
-  Shield, ChevronRight, Camera, Signal, Loader2, CheckCircle2, 
-  AlertTriangle, Lock, Users, Monitor, X, Copy, Eye, EyeOff, Check
+  LayoutDashboard, Settings, Wallet, Zap, 
+  Shield, CheckCircle2, AlertTriangle, X, Copy, Mail
 } from 'lucide-react';
 import { useDeployStore } from "../../store/useDeployStore";
 import '@livekit/components-styles';
@@ -28,16 +26,20 @@ export default function PulseOperatorHub() {
   const [deploying, setDeploying] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [showWaiver, setShowWaiver] = useState(false);
+  
+  // Nouveaux états Mission Protocol
   const [missionDesc, setMissionDesc] = useState("");
-  const [showApiKey, setShowApiKey] = useState(false);
+  const [minViewers, setMinViewers] = useState("");
+  const [requestedBounty, setRequestedBounty] = useState("");
+  const [missionStatus, setMissionStatus] = useState<'idle' | 'pending' | 'approved' | 'rejected'>('idle');
+  const [inboxMessages, setInboxMessages] = useState<{id: number, text: string, type: 'info'|'success'|'warning'|'error'}[]>([
+    {id: 1, text: "SYSTÈME: En attente de soumission de contrat.", type: "info"}
+  ]);
 
-  // Nouveaux états pour les fonctionnalités
   const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
-  const [showPasswordUpdate, setShowPasswordUpdate] = useState(false);
-  const [newPassword, setNewPassword] = useState("");
-  const [isUpdatingPwd, setIsUpdatingPwd] = useState(false);
 
-  const subTabs = ['General', 'Security', 'Billing', 'Notifications', 'Apps', 'Branding', 'Referral', 'Sharing'];
+  // Menus nettoyés
+  const subTabs = ['General', 'Security', 'Billing', 'Notifications', 'Referral', 'Sharing'];
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -47,10 +49,9 @@ export default function PulseOperatorHub() {
     checkAuth();
   }, [router]);
 
-  // --- FONCTIONS UTILITAIRES ---
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
+    setTimeout(() => setToast(null), 4000);
   };
 
   const copyToClipboard = async (text: string, successMessage: string) => {
@@ -62,35 +63,75 @@ export default function PulseOperatorHub() {
     }
   };
 
-  // --- LOGIQUE SÉCURITÉ (SUPABASE) ---
-  const handlePasswordUpdate = async () => {
-    if (!newPassword || newPassword.length < 6) {
-      showToast("Le mot de passe doit faire au moins 6 caractères", "error");
-      return;
+  // --- LOGIQUE SAUVEGARDE RÉPARÉE (UPSERT) ---
+  const handleSaveSettings = async () => {
+    store.addLog("SYNC: Deploying settings to secure cloud...");
+    try {
+      const { error } = await supabase.from('profiles').upsert(
+        { id: user.id, settings: store.settings },
+        { onConflict: 'id' }
+      );
+      if (error) throw error;
+      
+      store.addLog("SUCCESS: Global config saved.");
+      showToast("Configuration sauvegardée avec succès sur le serveur", "success");
+    } catch (err: any) {
+      console.error(err);
+      showToast(`Échec: ${err.message || "Erreur de base de données"}`, "error");
     }
-    setIsUpdatingPwd(true);
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
-    setIsUpdatingPwd(false);
+  };
+
+  // --- LOGIQUE SÉCURITÉ (VRAI EMAIL) ---
+  const handlePasswordReset = async () => {
+    if (!user?.email) return;
+    const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
 
     if (error) {
       showToast(error.message, "error");
     } else {
-      showToast("Mot de passe mis à jour avec succès");
-      store.updateSettings('security', { lastPasswordChange: new Date().toISOString().split('T')[0] });
-      setShowPasswordUpdate(false);
-      setNewPassword("");
+      showToast(`Lien de sécurité envoyé à ${user.email}`, "success");
     }
   };
 
-  // --- LOGIQUE BILLING ---
   const handleEditBilling = () => {
-    const newCard = window.prompt("Entrez les 4 derniers chiffres de votre nouvelle carte (Simulation) :");
+    const newCard = window.prompt("Entrez les 4 derniers chiffres de votre nouvelle carte :");
     if (newCard && newCard.length === 4 && !isNaN(Number(newCard))) {
       store.updateSettings('billing', { cardLast4: newCard });
       showToast("Moyen de paiement mis à jour");
     } else if (newCard) {
       showToast("Format invalide. Entrez 4 chiffres.", "error");
     }
+  };
+
+  // --- LOGIQUE MISSION PROTOCOL ---
+  const submitMissionProposal = () => {
+    if (!missionDesc || !minViewers || !requestedBounty) {
+      showToast("Toutes les données du contrat doivent être remplies", "error");
+      return;
+    }
+    
+    setMissionStatus("pending");
+    const newMsgId = Date.now();
+    setInboxMessages(prev => [{
+      id: newMsgId, 
+      text: `REQUÊTE ENVOYÉE: Validation de ${requestedBounty}$ pour ${minViewers} viewers en cours d'examen par le Commandement...`, 
+      type: 'warning'
+    }, ...prev]);
+
+    // TODO: À remplacer par un vrai call Supabase pour envoyer la demande à ton dashboard admin.
+    // Pour l'instant, ça simule une acceptation après 4 secondes.
+    setTimeout(() => {
+      setMissionStatus("approved");
+      setInboxMessages(prev => [{
+        id: Date.now() + 1, 
+        text: `✅ CONTRAT ACCEPTÉ : Objectifs validés. Montant bloqué : ${requestedBounty}$. Déploiement autorisé.`, 
+        type: 'success'
+      }, ...prev]);
+      store.setModuleStatus('aiApproved', true);
+      showToast("Contrat approuvé par l'administration !");
+    }, 4000);
   };
 
   // --- LOGIQUE SIGNATURE ---
@@ -118,7 +159,10 @@ export default function PulseOperatorHub() {
   };
 
   const handleDeploy = () => {
-    if (!store.isSystemReady()) return;
+    if (!store.isSystemReady() || missionStatus !== 'approved') {
+      showToast("Le système ou le contrat n'est pas prêt.", "error");
+      return;
+    }
     setDeploying(true);
     let timer = 3;
     setCountdown(timer);
@@ -137,7 +181,7 @@ export default function PulseOperatorHub() {
 
   return (
     <div className="h-screen w-full flex flex-col md:flex-row overflow-hidden bg-[#050505] font-mono text-white relative">
-      {store.settings.branding.crtEffect && <div className="crt-overlay pointer-events-none z-50 opacity-5" />}
+      {store.settings.branding?.crtEffect && <div className="crt-overlay pointer-events-none z-50 opacity-5" />}
       
       {/* TOAST NOTIFICATION */}
       {toast && (
@@ -147,7 +191,7 @@ export default function PulseOperatorHub() {
         </div>
       )}
 
-      {/* --- SIDEBAR (PC) / BOTTOM NAV (MOBILE) --- */}
+      {/* --- SIDEBAR --- */}
       {!isLive && (
         <nav className="fixed bottom-0 w-full md:relative md:w-64 bg-black border-t md:border-t-0 md:border-r border-white/5 flex md:flex-col p-2 md:p-6 gap-2 z-40 backdrop-blur-lg">
           {['hub', 'wallet', 'settings'].map((tab) => (
@@ -174,24 +218,35 @@ export default function PulseOperatorHub() {
               <h2 className="text-3xl md:text-5xl font-black uppercase italic tracking-tighter">Mission_Protocol</h2>
               <div className="flex flex-wrap gap-2 mt-3">
                 <StatusTag label="HW" ok={store.hardwareReady} />
-                <StatusTag label="AI" ok={store.aiApproved} />
+                <StatusTag label="CONTRACT" ok={missionStatus === 'approved'} />
                 <StatusTag label="SAFE" ok={store.safetyValid} />
               </div>
             </div>
 
             <div className="col-span-12 lg:col-span-7 space-y-4 md:space-y-6">
+              
+              {/* VRAI SYSTÈME DE DÉFINITION D'OBJECTIF */}
               <div className="bg-zinc-900/10 border border-white/5 p-6 md:p-8 rounded-2xl space-y-4">
                 <label className="text-[10px] font-black uppercase text-gray-500 tracking-widest flex items-center gap-2">
                   <Zap size={14} className="text-[#00FFC2]" /> Contract_Definition
                 </label>
-                <textarea 
-                  value={missionDesc} onChange={(e) => setMissionDesc(e.target.value)}
-                  placeholder="Describe objective..."
-                  className="w-full h-32 bg-black border border-white/10 p-4 rounded-xl text-xs outline-none focus:border-[#00FFC2] transition-all"
-                />
-                <button onClick={() => {store.setModuleStatus('aiApproved', true); store.addLog("AI: Validated."); showToast("Objectif validé par l'IA");}}
-                  className="w-full py-4 bg-[#00FFC2] text-black font-black text-[10px] uppercase rounded-xl hover:scale-[1.02] transition-all">
-                  VALIDATE_OBJECTIVE
+                
+                <InputBox label="Mission Objective / Rules" type="textarea" value={missionDesc} onChange={setMissionDesc} />
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <InputBox label="Minimum Viewers Required" type="number" value={minViewers} onChange={setMinViewers} />
+                  <InputBox label="Requested Bounty ($)" type="number" value={requestedBounty} onChange={setRequestedBounty} />
+                </div>
+
+                <button 
+                  onClick={submitMissionProposal}
+                  disabled={missionStatus === 'pending' || missionStatus === 'approved'}
+                  className={`w-full py-4 font-black text-[10px] uppercase rounded-xl transition-all ${
+                    missionStatus === 'approved' ? 'bg-[#00FFC2]/20 text-[#00FFC2] border border-[#00FFC2] cursor-not-allowed' :
+                    missionStatus === 'pending' ? 'bg-yellow-500/20 text-yellow-500 border border-yellow-500 cursor-not-allowed' :
+                    'bg-[#00FFC2] text-black hover:scale-[1.02]'
+                  }`}>
+                  {missionStatus === 'approved' ? 'CONTRACT APPROVED' : missionStatus === 'pending' ? 'AWAITING COMMAND RESPONSE...' : 'SUBMIT_PROPOSAL'}
                 </button>
               </div>
 
@@ -209,20 +264,32 @@ export default function PulseOperatorHub() {
             </div>
 
             <div className="col-span-12 lg:col-span-5 space-y-4">
-              <div className="bg-[#00FFC2]/5 border border-[#00FFC2]/20 p-8 rounded-2xl text-center">
-                <span className="text-[10px] text-gray-500 font-black uppercase">Est_Payout</span>
-                <div className="text-5xl font-black italic text-[#00FFC2] my-2">${store.payout}</div>
-                <div className="flex gap-2 mt-4">
-                  {['LOW', 'MID', 'EXTREME'].map(lvl => (
-                    <button key={lvl} onClick={() => {store.setRisk(lvl as any); showToast(`Niveau de risque défini sur ${lvl}`);}}
-                      className={`flex-1 py-2 rounded text-[8px] font-black border ${store.riskLevel === lvl ? 'bg-[#00FFC2] text-black' : 'border-white/10 text-gray-500'} hover:bg-white/5 transition-all`}>{lvl}</button>
-                  ))}
+              {/* MESSAGERIE REMPLACE EST_PAYOUT */}
+              <div className="bg-black border border-white/10 p-6 rounded-2xl h-64 flex flex-col">
+                <div className="flex items-center gap-2 mb-4 border-b border-white/5 pb-4">
+                   <Mail size={16} className="text-gray-500" />
+                   <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-500">Command_Messages</h3>
+                </div>
+                <div className="flex-1 overflow-y-auto space-y-3 scrollbar-hide pr-2">
+                   {inboxMessages.map(msg => (
+                     <div key={msg.id} className={`p-3 rounded-lg border text-xs leading-relaxed ${
+                       msg.type === 'success' ? 'bg-[#00FFC2]/10 border-[#00FFC2]/30 text-[#00FFC2]' :
+                       msg.type === 'warning' ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-500' :
+                       msg.type === 'error' ? 'bg-red-500/10 border-red-500/30 text-red-500' :
+                       'bg-white/5 border-white/10 text-gray-300'
+                     }`}>
+                       {msg.text}
+                     </div>
+                   ))}
                 </div>
               </div>
+
               <button 
                 onClick={handleDeploy}
-                disabled={!store.isSystemReady() || deploying}
-                className={`w-full py-10 rounded-2xl font-black text-2xl uppercase italic tracking-widest transition-all ${store.isSystemReady() ? 'bg-white text-black shadow-[0_0_50px_rgba(255,255,255,0.1)] hover:scale-[1.02]' : 'bg-white/5 text-gray-800 cursor-not-allowed'}`}>
+                disabled={!store.isSystemReady() || missionStatus !== 'approved' || deploying}
+                className={`w-full py-10 rounded-2xl font-black text-2xl uppercase italic tracking-widest transition-all ${
+                  store.isSystemReady() && missionStatus === 'approved' ? 'bg-white text-black shadow-[0_0_50px_rgba(255,255,255,0.1)] hover:scale-[1.02]' : 'bg-white/5 text-gray-800 cursor-not-allowed'
+                }`}>
                 {deploying ? `T-MINUS ${countdown}` : 'Deploy_Live'}
               </button>
             </div>
@@ -230,7 +297,7 @@ export default function PulseOperatorHub() {
         )}
 
         {/* ============================================== */}
-        {/* ONGLET SETTINGS (8 Modules Max Out)            */}
+        {/* ONGLET SETTINGS                                */}
         {/* ============================================== */}
         {!isLive && activeTab === 'settings' && (
           <div className="flex flex-col h-full overflow-hidden w-full">
@@ -258,7 +325,7 @@ export default function PulseOperatorHub() {
                     <InputBox label="Operator Handle" value={store.settings.general.username} onChange={(v) => store.updateSettings('general', {username: v.toUpperCase()})} />
                     <InputBox label="Comms Email" value={store.settings.general.email} onChange={(v) => store.updateSettings('general', {email: v})} />
                   </div>
-                  <InputBox label="Tactical Bio" value={store.settings.general.bio} isTextArea onChange={(v) => store.updateSettings('general', {bio: v})} />
+                  <InputBox label="Tactical Bio" type="textarea" value={store.settings.general.bio} onChange={(v) => store.updateSettings('general', {bio: v})} />
                 </div>
               )}
 
@@ -281,11 +348,15 @@ export default function PulseOperatorHub() {
                     </div>
                   </div>
                   <div className="space-y-3">
-                    <div className="p-4 bg-zinc-900/40 rounded-xl border border-white/5 flex justify-between items-center">
-                      <div><p className="text-[10px] font-black uppercase text-white">Master Password</p><p className="text-[8px] text-[#00FFC2] uppercase font-bold">Last changed: {store.settings.security.lastPasswordChange}</p></div>
-                      <button onClick={() => setShowPasswordUpdate(true)} className="px-4 py-2 border border-white/20 rounded-lg text-[9px] font-black uppercase hover:bg-white hover:text-black transition-all">Update</button>
+                    <div className="p-4 bg-zinc-900/40 rounded-xl border border-white/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                      <div>
+                        <p className="text-[10px] font-black uppercase text-white">Master Access Key</p>
+                        <p className="text-[8px] text-yellow-500 uppercase font-bold mt-1">Vérification email requise pour modification</p>
+                      </div>
+                      <button onClick={handlePasswordReset} className="w-full md:w-auto px-6 py-3 border border-[#00FFC2]/50 text-[#00FFC2] rounded-lg text-[9px] font-black uppercase hover:bg-[#00FFC2] hover:text-black transition-all">
+                        Send Reset Link
+                      </button>
                     </div>
-                    <ToggleRow label="Two-Factor Authentication (2FA)" active={store.settings.security.mfaEnabled} onToggle={() => store.updateSettings('security', {mfaEnabled: !store.settings.security.mfaEnabled})} />
                   </div>
                 </div>
               )}
@@ -313,46 +384,10 @@ export default function PulseOperatorHub() {
                 <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-300">
                   <ToggleRow label="Push Alerts (Mobile/Web)" active={store.settings.notifications.push} onToggle={() => store.updateSettings('notifications', {push: !store.settings.notifications.push})} />
                   <ToggleRow label="Tactical Comms (Live Bounties)" active={store.settings.notifications.tacticalComms} onToggle={() => store.updateSettings('notifications', {tacticalComms: !store.settings.notifications.tacticalComms})} />
-                  <ToggleRow label="Email Summaries" active={store.settings.notifications.email} onToggle={() => store.updateSettings('notifications', {email: !store.settings.notifications.email})} />
                 </div>
               )}
 
-              {/* 5. APPS & INTEGRATIONS */}
-              {activeSubTab === 'Apps' && (
-                <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
-                  <ToggleRow label="Discord Webhooks" active={store.settings.apps.discordLinked} onToggle={() => store.updateSettings('apps', {discordLinked: !store.settings.apps.discordLinked})} />
-                  <ToggleRow label="Telegram Bot" active={store.settings.apps.telegramLinked} onToggle={() => store.updateSettings('apps', {telegramLinked: !store.settings.apps.telegramLinked})} />
-                  <div className="pt-6 border-t border-white/5">
-                    <label className="text-[9px] font-black uppercase text-gray-500 tracking-widest block mb-2">Developer API Key</label>
-                    <div className="flex gap-2">
-                      <div className="flex-1 bg-black border border-white/10 rounded-xl p-4 text-xs flex items-center justify-between font-mono text-gray-400">
-                        {showApiKey ? store.settings.apps.apiKey : '•'.repeat(store.settings.apps.apiKey.length)}
-                        <button onClick={() => setShowApiKey(!showApiKey)} className="text-gray-500 hover:text-white transition-colors"><Eye size={16}/></button>
-                      </div>
-                      <button onClick={() => copyToClipboard(store.settings.apps.apiKey, "Clé API copiée !")} className="px-4 bg-white/5 border border-white/10 rounded-xl hover:bg-white hover:text-black transition-all">
-                        <Copy size={16}/>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* 6. BRANDING */}
-              {activeSubTab === 'Branding' && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
-                  <div className="space-y-4">
-                    <label className="text-[9px] font-black uppercase text-gray-500 tracking-widest block">HUD Accent Color</label>
-                    <div className="flex gap-4">
-                      {['#00FFC2', '#FF0055', '#A855F7', '#facc15', '#FFFFFF'].map(c => (
-                        <button key={c} onClick={() => store.updateSettings('branding', {accentColor: c})} style={{backgroundColor: c}} className={`w-12 h-12 rounded-xl border-2 transition-all shadow-lg ${store.settings.branding.accentColor === c ? 'border-white scale-110' : 'border-transparent opacity-40 hover:opacity-100'}`} />
-                      ))}
-                    </div>
-                  </div>
-                  <ToggleRow label="CRT Scanline Overlay" active={store.settings.branding.crtEffect} onToggle={() => store.updateSettings('branding', {crtEffect: !store.settings.branding.crtEffect})} />
-                </div>
-              )}
-
-              {/* 7. REFERRAL */}
+              {/* 5. REFERRAL */}
               {activeSubTab === 'Referral' && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
                   <div className="bg-zinc-900/40 border border-white/10 p-6 rounded-2xl flex flex-col md:flex-row justify-between items-center gap-4">
@@ -373,7 +408,7 @@ export default function PulseOperatorHub() {
                 </div>
               )}
 
-              {/* 8. SHARING */}
+              {/* 6. SHARING */}
               {activeSubTab === 'Sharing' && (
                 <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-300">
                   <ToggleRow label="Public Operator Profile" active={store.settings.sharing.publicProfile} onToggle={() => store.updateSettings('sharing', {publicProfile: !store.settings.sharing.publicProfile})} />
@@ -383,16 +418,7 @@ export default function PulseOperatorHub() {
 
               {/* SAVE BUTTON FOR SETTINGS */}
               <div className="pt-10 mt-10 border-t border-white/10">
-                <button onClick={async () => {
-                  store.addLog("SYNC: Deploying settings to secure cloud...");
-                  const { error } = await supabase.from('profiles').update({ settings: store.settings }).eq('id', user.id);
-                  if (error) {
-                    showToast("Échec de la sauvegarde", "error");
-                  } else {
-                    store.addLog("SUCCESS: Global config saved.");
-                    showToast("Configuration globale sauvegardée", "success");
-                  }
-                }} className="w-full py-5 bg-[#00FFC2] text-black font-black uppercase tracking-[0.3em] italic rounded-2xl hover:scale-[1.02] transition-all shadow-[0_0_40px_rgba(0,255,194,0.15)]">
+                <button onClick={handleSaveSettings} className="w-full py-5 bg-[#00FFC2] text-black font-black uppercase tracking-[0.3em] italic rounded-2xl hover:scale-[1.02] transition-all shadow-[0_0_40px_rgba(0,255,194,0.15)]">
                   Save_Global_Config
                 </button>
               </div>
@@ -410,12 +436,11 @@ export default function PulseOperatorHub() {
               <div className="absolute inset-0 z-0 bg-zinc-900 flex items-center justify-center">
                  <p className="text-[#00FFC2] animate-pulse font-black uppercase text-xs tracking-[0.5em]">Transmitting_Neural_Link...</p>
               </div>
-              {/* HUD */}
               <div className="absolute inset-0 p-6 md:p-10 flex flex-col justify-between pointer-events-none z-10">
                 <div className="flex justify-between items-start">
                    <div className="bg-red-600 px-3 py-1 text-[10px] font-black uppercase italic shadow-lg">Live_Ops</div>
                    <div className="text-right">
-                      <div className="text-4xl md:text-6xl font-black italic" style={{ color: store.settings.branding.accentColor }}>${store.payout}</div>
+                      <div className="text-4xl md:text-6xl font-black italic text-[#00FFC2]">${requestedBounty}</div>
                       {store.settings.sharing.anonymousMode && <div className="text-[8px] bg-white text-black px-2 py-0.5 inline-block uppercase font-black mt-2">Stealth_Active</div>}
                    </div>
                 </div>
@@ -427,33 +452,6 @@ export default function PulseOperatorHub() {
           </div>
         )}
       </section>
-
-      {/* ============================================== */}
-      {/* PASSWORD UPDATE MODAL                          */}
-      {/* ============================================== */}
-      {showPasswordUpdate && (
-        <div className="fixed inset-0 z-[200] bg-black/95 backdrop-blur-xl flex items-center justify-center p-6 animate-in fade-in duration-200">
-          <div className="w-full max-w-md bg-[#0a0a0a] border border-white/10 rounded-3xl p-8 space-y-6">
-            <div className="flex justify-between items-center">
-               <h2 className="text-xl font-black uppercase italic tracking-widest">Update_Credentials</h2>
-               <button onClick={() => setShowPasswordUpdate(false)} className="p-2 text-gray-500 hover:text-white"><X size={20}/></button>
-            </div>
-            <div className="space-y-4">
-              <InputBox 
-                label="New Password" 
-                value={newPassword} 
-                onChange={setNewPassword} 
-              />
-              <button 
-                onClick={handlePasswordUpdate} 
-                disabled={isUpdatingPwd}
-                className="w-full py-4 bg-white text-black font-black uppercase tracking-widest rounded-xl hover:bg-gray-200 transition-all disabled:opacity-50">
-                {isUpdatingPwd ? "Encrypting..." : "Confirm_Change"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ============================================== */}
       {/* WAIVER MODAL (MOBILE FIXED)                    */}
@@ -509,14 +507,14 @@ function StatusTag({ label, ok }: { label: string, ok: boolean }) {
   );
 }
 
-function InputBox({ label, value, onChange, isTextArea = false }: { label: string, value: string, onChange: (v: string) => void, isTextArea?: boolean }) {
+function InputBox({ label, value, onChange, type = "text" }: { label: string, value: string, onChange: (v: string) => void, type?: "text" | "textarea" | "number" }) {
   return (
     <div className="space-y-2">
       <label className="text-[9px] font-black uppercase text-gray-500 tracking-widest block">{label}</label>
-      {isTextArea ? (
+      {type === "textarea" ? (
         <textarea value={value} onChange={(e) => onChange(e.target.value)} className="w-full bg-black border border-white/10 p-4 rounded-xl text-xs text-white outline-none focus:border-[#00FFC2] transition-colors h-24 resize-none" />
       ) : (
-        <input type="text" value={value} onChange={(e) => onChange(e.target.value)} className="w-full bg-black border border-white/10 p-4 rounded-xl text-xs text-white outline-none focus:border-[#00FFC2] transition-colors" />
+        <input type={type} value={value} onChange={(e) => onChange(e.target.value)} className="w-full bg-black border border-white/10 p-4 rounded-xl text-xs text-white outline-none focus:border-[#00FFC2] transition-colors" />
       )}
     </div>
   );
