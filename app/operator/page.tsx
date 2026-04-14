@@ -7,8 +7,7 @@ import SignatureCanvas from 'react-signature-canvas';
 import { LiveKitRoom } from '@livekit/components-react';
 import { 
   LayoutDashboard, Settings, Wallet, Zap, 
-  Shield, CheckCircle2, AlertTriangle, X, Copy, Mail,
-  Loader2, Activity, Crosshair
+  Shield, CheckCircle2, AlertTriangle, X, Activity, Crosshair, Loader2
 } from 'lucide-react';
 import { useDeployStore } from "../../store/useDeployStore";
 import '@livekit/components-styles';
@@ -29,7 +28,6 @@ export default function PulseOperatorHub() {
   const [countdown, setCountdown] = useState<number | null>(null);
   const [showWaiver, setShowWaiver] = useState(false);
   
-  // VRAI SYSTEME DE MISSIONS (DATABASE)
   const [missions, setMissions] = useState<any[]>([]);
   const [missionDesc, setMissionDesc] = useState("");
   const [minViewers, setMinViewers] = useState("");
@@ -41,7 +39,6 @@ export default function PulseOperatorHub() {
 
   const subTabs = ['General', 'Security', 'Billing', 'Notifications', 'Referral', 'Sharing'];
 
-  // Initialisation et Auth
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -55,7 +52,6 @@ export default function PulseOperatorHub() {
     checkAuth();
   }, [router]);
 
-  // ABONNEMENT TEMPS RÉEL (REALTIME)
   useEffect(() => {
     if (!user) return;
     
@@ -97,7 +93,6 @@ export default function PulseOperatorHub() {
     }
   };
 
-  // --- SAUVEGARDE GLOBALE ---
   const handleSaveSettings = async () => {
     store.addLog("SYNC: Deploying settings to secure cloud...");
     try {
@@ -112,7 +107,6 @@ export default function PulseOperatorHub() {
     }
   };
 
-  // --- SÉCURITÉ ---
   const handlePasswordReset = async () => {
     if (!user?.email) return;
     const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
@@ -126,7 +120,6 @@ export default function PulseOperatorHub() {
     }
   };
 
-  // --- SOUMISSION DE MISSION ---
   const submitMissionProposal = async () => {
     if (!missionDesc || !minViewers || !requestedBounty) {
       showToast("Toutes les données tactiques sont requises.", "error");
@@ -155,7 +148,6 @@ export default function PulseOperatorHub() {
     }
   };
 
-  // --- SIGNATURE LÉGALE 100% SÉCURISÉE ---
   const signLegalWaiver = async () => {
     if (!sigCanvas.current || sigCanvas.current.isEmpty()) {
       return showToast("Signature requise.", "error");
@@ -163,7 +155,6 @@ export default function PulseOperatorHub() {
     
     const signatureData = sigCanvas.current.getTrimmedCanvas().toDataURL('image/png');
     
-    // Insertion réelle dans Supabase pour couverture légale
     const { error } = await supabase.from('operator_waivers').insert([{ 
       user_id: user.id, 
       contract_version: '4.0.2', 
@@ -175,18 +166,15 @@ export default function PulseOperatorHub() {
       return;
     }
 
-    // Si succès DB, on débloque le frontend
     store.setSignature(signatureData);
     store.setModuleStatus('safetyValid', true);
     setShowWaiver(false);
     showToast("Contrat légal signé et archivé !");
   };
 
-  // --- DÉPLOIEMENT ---
   const activeMission = missions.find(m => m.status === 'approved');
 
   const handleDeploy = () => {
-    // Vérification stricte: Il faut le contrat signé (safetyValid) ET une mission approuvée
     if (!store.safetyValid || !activeMission) {
       showToast("Contrat légal non signé ou aucune mission approuvée.", "error");
       return;
@@ -211,7 +199,6 @@ export default function PulseOperatorHub() {
     <div className="h-screen w-full flex flex-col md:flex-row overflow-hidden bg-[#050505] font-mono text-white relative">
       {store.settings.branding?.crtEffect && <div className="crt-overlay pointer-events-none z-50 opacity-5" />}
       
-      {/* TOAST NOTIFICATION */}
       {toast && (
         <div className={`fixed top-4 right-4 z-[300] px-6 py-3 rounded-xl flex items-center gap-3 font-black text-xs uppercase tracking-widest animate-in slide-in-from-top-4 fade-in duration-300 shadow-2xl ${toast.type === 'success' ? 'bg-[#00FFC2]/20 border border-[#00FFC2] text-[#00FFC2]' : 'bg-red-500/20 border border-red-500 text-red-500'}`}>
           {toast.type === 'success' ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
@@ -219,9 +206,8 @@ export default function PulseOperatorHub() {
         </div>
       )}
 
-      {/* --- SIDEBAR --- */}
       {!isLive && (
-        <nav className="fixed bottom-0 w-full md:relative md:w-64 bg-black border-t md:border-t-0 md:border-r border-white/5 flex md:flex-col p-2 md:p-6 gap-2 z-40 backdrop-blur-lg">
+        <nav className="fixed bottom-0 w-full md:relative md:w-64 bg-black/90 border-t md:border-t-0 md:border-r border-white/5 flex md:flex-col p-2 md:p-6 gap-2 z-40 backdrop-blur-lg safe-area-bottom">
           {['hub', 'wallet', 'settings'].map((tab) => (
             <button key={tab} onClick={() => setActiveTab(tab as any)} 
               className={`flex-1 md:flex-none flex items-center justify-center md:justify-start gap-3 p-4 text-[10px] font-black uppercase tracking-widest transition-all ${
@@ -234,14 +220,10 @@ export default function PulseOperatorHub() {
         </nav>
       )}
 
-      {/* --- MAIN CONTENT --- */}
-      <section className="flex-1 relative flex flex-col overflow-hidden pb-20 md:pb-0">
+      <section className="flex-1 relative flex flex-col overflow-hidden pb-32 md:pb-0">
         
-        {/* ============================================== */}
-        {/* ONGLET HUB (Mission Protocol)                    */}
-        {/* ============================================== */}
         {!isLive && activeTab === 'hub' && (
-          <div className="p-4 md:p-10 max-w-7xl mx-auto w-full grid grid-cols-12 gap-4 md:gap-6 overflow-y-auto scrollbar-hide">
+          <div className="h-full overflow-y-auto p-4 md:p-10 pb-40 md:pb-10 max-w-7xl mx-auto w-full grid grid-cols-12 gap-4 md:gap-6 scrollbar-hide">
             <div className="col-span-12 border-b border-[#00FFC2]/20 pb-6 flex justify-between items-end">
               <div>
                 <h2 className="text-3xl md:text-5xl font-black uppercase italic tracking-tighter">Mission_Protocol</h2>
@@ -253,7 +235,6 @@ export default function PulseOperatorHub() {
               </div>
             </div>
 
-            {/* COLONNE GAUCHE : CRÉATION DE MISSION */}
             <div className="col-span-12 lg:col-span-7 space-y-4 md:space-y-6">
               
               <div className="bg-zinc-900/10 border border-white/5 p-6 md:p-8 rounded-2xl space-y-5">
@@ -295,7 +276,6 @@ export default function PulseOperatorHub() {
                 </button>
               </div>
 
-              {/* MODULE DE SÉCURITÉ */}
               <div className={`p-6 md:p-8 rounded-2xl border ${store.safetyValid ? 'border-[#00FFC2]/30 bg-[#00FFC2]/5' : 'border-red-500/20 bg-red-500/5'}`}>
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-3">
@@ -309,10 +289,8 @@ export default function PulseOperatorHub() {
               </div>
             </div>
 
-            {/* COLONNE DROITE : DATA & DÉPLOIEMENT */}
             <div className="col-span-12 lg:col-span-5 space-y-4">
               
-              {/* LA VRAIE BOÎTE DE RÉCEPTION */}
               <div className="bg-black border border-white/10 rounded-2xl flex flex-col" style={{ height: '380px' }}>
                 <div className="flex items-center justify-between p-5 border-b border-white/5">
                    <div className="flex items-center gap-2">
@@ -354,7 +332,6 @@ export default function PulseOperatorHub() {
                 </div>
               </div>
 
-              {/* BOUTON DE DÉPLOIEMENT DYNAMIQUE */}
               <button 
                 onClick={handleDeploy}
                 disabled={!store.safetyValid || !activeMission || deploying}
@@ -373,9 +350,6 @@ export default function PulseOperatorHub() {
           </div>
         )}
 
-        {/* ============================================== */}
-        {/* ONGLET SETTINGS (RESTAURÉ INTÉGRALEMENT)       */}
-        {/* ============================================== */}
         {!isLive && activeTab === 'settings' && (
           <div className="flex flex-col h-full overflow-hidden w-full">
             <div className="px-4 pt-6 md:px-10 md:pt-10 flex-shrink-0">
@@ -493,9 +467,6 @@ export default function PulseOperatorHub() {
           </div>
         )}
 
-        {/* ============================================== */}
-        {/* LIVE VIEW (FULL SCREEN)                        */}
-        {/* ============================================== */}
         {isLive && activeMission && (
           <div className="fixed inset-0 z-[100] bg-black animate-in fade-in duration-500">
             <LiveKitRoom video audio token="DUMMY" serverUrl="DUMMY" connect className="h-full w-full relative">
@@ -520,9 +491,6 @@ export default function PulseOperatorHub() {
           </div>
         )}
 
-        {/* ============================================== */}
-        {/* WAIVER MODAL                                   */}
-        {/* ============================================== */}
         {showWaiver && (
            <div className="fixed inset-0 z-[200] bg-black/95 backdrop-blur-xl flex items-end md:items-center justify-center p-0 md:p-6 animate-in slide-in-from-bottom duration-300">
               <div className="w-full max-w-2xl bg-[#0a0a0a] border-t md:border border-white/10 rounded-t-3xl md:rounded-3xl p-6 md:p-10 space-y-6 max-h-[90vh] flex flex-col">
@@ -561,7 +529,6 @@ export default function PulseOperatorHub() {
   );
 }
 
-// COMPOSANTS UTILES
 function StatusTag({ label, ok }: { label: string, ok: boolean }) {
   return (
     <div className={`px-2 py-0.5 border text-[8px] font-black uppercase tracking-widest rounded-sm ${ok ? 'border-[#00FFC2] text-[#00FFC2]' : 'border-red-500/20 text-red-500/40'}`}>

@@ -37,18 +37,16 @@ body {
 
 /* --- LE MONOLITHE PULSE (ZÉRO COUPE) --- */
 .pulse-monolith {
-  /* Taille massive inchangée pour une domination totale */
   font-size: clamp(80px, 15vw, 200px);
   font-weight: 950;
   font-style: italic;
   letter-spacing: -0.05em;
-  line-height: 1; /* Le Fix pour "Tactical" est toujours là */
+  line-height: 1;
   text-transform: uppercase;
   position: relative;
   z-index: 10;
   
   /* --- LE FIX ZÉRO COUPE --- */
-  /* Crée un buffer de sécurité pour que le 'E' puisse exister */
   padding: 0 50px; 
   /* --- FIN DU FIX --- */
   
@@ -60,11 +58,9 @@ body {
   animation: glitch-sharp 4s steps(1) infinite;
 }
 
-/* Lueur émanant du texte */
 .pulse-monolith::after {
   content: "PULSE";
   position: absolute;
-  /* On ajuste le positionnement pour le padding */
   left: 50px; 
   right: 50px; 
   top: 0;
@@ -84,4 +80,11 @@ body {
   background-size: 60px 60px;
   transform: perspective(600px) rotateX(65deg);
   animation: grid-scroll 2s linear infinite;
+}
+
+/* --- FIX MOBILE : SAFE AREA NAV BAR --- */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .safe-area-bottom {
+    padding-bottom: calc(env(safe-area-inset-bottom) + 0.5rem);
+  }
 }
