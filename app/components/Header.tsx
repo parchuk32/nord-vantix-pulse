@@ -33,13 +33,13 @@ export default function Header() {
   }, []);
 
   // Définition des onglets
- const navItems = [
-    { name: 'HOME', path: '/home', isPublic: true }, // On remet /home ici
+  const navItems = [
+    { name: 'HOME', path: '/', isPublic: true }, // Modifié : /home devient /
     { name: 'WATCHER', path: '/terminal', isPublic: true },
     { name: 'PLAYERS', path: '/operator', isPublic: false },
     { name: 'RANKINGS', path: '/rankings', isPublic: false },
   ];
-  
+
   // Bloquer l'accès aux onglets privés
   const handleNavClick = (e: React.MouseEvent, isPublic: boolean) => {
     if (!isPublic && !isAuthenticated) {
