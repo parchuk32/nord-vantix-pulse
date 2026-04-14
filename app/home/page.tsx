@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
-import { Radio, Lock } from 'lucide-react';
+import { Radio, Lock, Unlock } from 'lucide-react';
 
 // Initialisation de Supabase
 const supabase = createClient(
@@ -81,7 +81,14 @@ export default function NordVantixHome() {
           {/* ACCÈS OPERATOR (PRIVÉ / PROTÉGÉ) */}
           <button onClick={handleOperatorClick} className="group p-8 bg-white text-black rounded-2xl hover:scale-105 transition-all shadow-[0_0_50px_rgba(255,255,255,0.1)] text-left w-full">
             <div className="flex flex-col items-center gap-4">
-              <Lock size={32} className="group-hover:rotate-12 transition-transform" />
+              
+              {/* L'ICÔNE CHANGE ICI EN FONCTION DE L'AUTHENTIFICATION */}
+              {isAuthenticated ? (
+                <Unlock size={32} className="group-hover:rotate-12 transition-transform text-[#00FFC2]" />
+              ) : (
+                <Lock size={32} className="group-hover:rotate-12 transition-transform" />
+              )}
+
               <div className="text-center">
                 <span className="block font-black text-xl italic uppercase tracking-widest">Initialize_Ops</span>
                 <span className="text-[9px] opacity-60 uppercase font-bold tracking-widest">
