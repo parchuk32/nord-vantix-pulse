@@ -31,14 +31,26 @@ export default function WatcherTerminal() {
   const [activePlayers, setActivePlayers] = useState<any[]>([]);
   const [selectedPlayer, setSelectedPlayer] = useState<any>(null);
 
+  // RÉCUPÉRATION DES VRAIES MISSIONS (Opérateurs en direct)
   const fetchSessions = async () => {
-    const { data } = await supabase.from('live_sessions').select('*');
+    const { data, error } = await supabase
+      .from('missions')
+      .select('*')
+      .in('status', ['approved', 'active']) // On affiche seulement ceux qui sont approuvés ou en cours
+      .order('created_at', { ascending: false });
+      
     if (data) setActivePlayers(data);
   };
 
   useEffect(() => {
     fetchSessions();
-    const channel = supabase.channel('terminal-sync').on('postgres_changes', { event: '*', schema: 'public', table: 'live_sessions' }, () => fetchSessions()).subscribe();
+    
+    // TEMPS RÉEL : Si un opérateur est approuvé, il pop instantanément sur l'écran des Watchers
+    const channel = supabase.channel('terminal-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'missions' }, () => {
+        fetchSessions();
+      }).subscribe();
+      
     return () => { supabase.removeChannel(channel); };
   }, []);
 
@@ -64,47 +76,57 @@ export default function WatcherTerminal() {
              {/* Player Overlay Stats */}
              <div className="absolute top-6 right-6 flex flex-col items-end gap-2">
                 <div className="text-4xl font-black italic text-[#00FFC2] drop-shadow-[0_0_15px_rgba(0,255,194,0.4)]">
-                   $2,140.75
+                   ${selectedPlayer.bounty}
                 </div>
                 <div className="flex gap-2">
                    <span className="bg-red-600 px-2 py-0.5 text-[9px] font-black rounded-sm shadow-lg">LIVE</span>
-                   <span className="bg-black/60 px-2 py-0.5 text-[9px] border border-white/10 rounded-sm text-white/70">25,478 WATCHERS</span>
+                   <span className="bg-black/60 px-2 py-0.5 text-[9px] border border-white/10 rounded-sm text-white/70">
+                     MIN {selectedPlayer.min_viewers} REQ.
+                   </span>
                 </div>
              </div>
           </div>
 
-          {/* Mission Details (Bas de l'écran) */}
+          {/* Mission Details (Bas de l'écran - VRAIES DONNÉES) */}
           <div className="h-48 border-t border-white/5 bg-black/40 p-8 flex justify-between items-center">
              <div className="space-y-4 max-w-lg w-full">
                 <div>
-                   <span className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Active_Operation</span>
-                   <h3 className="text-3xl font-black italic uppercase tracking-tighter">Crane Height Challenge</h3>
+                   <span className="text-[9px] text-gray-500 font-black uppercase tracking-widest flex gap-3">
+                     Active_Operation 
+                     <span className={`${selectedPlayer.risk_level === 'EXTREME' ? 'text-red-500' : 'text-[#00FFC2]'}`}>
+                       [{selectedPlayer.risk_level} RISK]
+                     </span>
+                   </span>
+                   {/* Affichage de l'objectif réel tapé par le joueur */}
+                   <h3 className="text-xl font-black italic uppercase tracking-tighter line-clamp-2 mt-1">
+                     {selectedPlayer.objective}
+                   </h3>
                 </div>
                 <div className="space-y-2">
                    <div className="flex justify-between text-[10px] font-black">
-                      <span className="text-[#00FFC2] uppercase italic tracking-widest">Final_Task_Progress</span>
-                      <span>62%</span>
+                      <span className="text-[#00FFC2] uppercase italic tracking-widest">System_Integrity</span>
+                      <span>100%</span>
                    </div>
                    <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
-                      <div className="h-full bg-[#00FFC2] shadow-[0_0_15px_#00FFC2]" style={{ width: '62%' }} />
+                      <div className="h-full bg-[#00FFC2] shadow-[0_0_15px_#00FFC2]" style={{ width: '100%' }} />
                    </div>
                 </div>
              </div>
              <div className="text-right">
                 <span className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Bounty_Pool</span>
-                <div className="text-3xl font-black italic text-[#00FFC2]">${selectedPlayer.bounty || '7,500'}</div>
+                <div className="text-3xl font-black italic text-[#00FFC2]">${selectedPlayer.bounty}</div>
              </div>
           </div>
         </div>
 
-        {/* SECTION DROITE : WAGERS & CHAT (FIXE) */}
+        {/* SECTION DROITE : WAGERS & CHAT (FIXE - À connecter plus tard) */}
         <aside className="w-[380px] bg-black flex flex-col pointer-events-auto">
            {/* Panneau de Paris */}
            <div className="p-8 border-b border-white/5 bg-[#080808]">
               <div className="flex items-center gap-2 text-[#00FFC2] font-black uppercase text-[10px] tracking-widest mb-6">
                  <TrendingUp size={16} /> Wagers_Matrix
               </div>
-              <div className="text-5xl font-black italic text-white mb-8">$28,451</div>
+              <div className="text-5xl font-black italic text-white mb-8">$0.00</div>
               <div className="grid grid-cols-2 gap-4 mb-6">
                  <button className="py-4 bg-[#00FFC2]/5 border border-[#00FFC2]/20 text-[#00FFC2] text-[10px] font-black uppercase hover:bg-[#00FFC2] hover:text-black transition-all">Success 75%</button>
                  <button className="py-4 bg-red-500/5 border border-red-500/20 text-red-500 text-[10px] font-black uppercase hover:bg-red-500 hover:text-black transition-all">Failure 25%</button>
@@ -119,12 +141,8 @@ export default function WatcherTerminal() {
               </div>
               <div className="flex-1 overflow-y-auto space-y-5 mb-6 scrollbar-hide text-[11px]">
                  <div className="animate-in fade-in slide-in-from-right-2">
-                    <span className="text-[#00FFC2] font-black mr-2 uppercase italic tracking-tighter">Operator_X:</span>
-                    <span className="text-white/80 leading-relaxed">Status confirmed. Target moving to secondary roof.</span>
-                 </div>
-                 <div className="animate-in fade-in slide-in-from-right-2">
-                    <span className="text-white/30 font-black mr-2 uppercase italic tracking-tighter">Ghost_User:</span>
-                    <span className="text-white/80">Don't look down. $200 on the jump.</span>
+                    <span className="text-[#00FFC2] font-black mr-2 uppercase italic tracking-tighter">SYSTEM:</span>
+                    <span className="text-white/80 leading-relaxed">Uplink established. Waiting for watchers...</span>
                  </div>
               </div>
               <div className="relative">
@@ -152,33 +170,41 @@ export default function WatcherTerminal() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
-        {activePlayers.map((player) => (
-          <div 
-            key={player.id}
-            onClick={() => setSelectedPlayer(player)}
-            className="group relative border border-white/5 aspect-video bg-black overflow-hidden hover:border-[#00FFC2]/50 transition-all cursor-pointer shadow-2xl hover:scale-[1.02]"
-          >
-            <div className="absolute inset-0 z-0 bg-zinc-900 animate-pulse" />
-            
-            {/* Card UI */}
-            <div className="absolute inset-0 p-6 flex flex-col justify-between z-10 pointer-events-none">
-              <div className="flex justify-between items-start">
-                <span className="bg-black/80 px-2 py-1 border border-white/10 text-[9px] font-black uppercase italic tracking-widest text-white">ID_{player.player_id}</span>
-                <div className="flex items-center gap-2">
-                   <div className="w-2 h-2 rounded-full bg-red-600 animate-ping" />
-                   <span className="text-red-500 text-[9px] font-black uppercase italic">Live</span>
+        {activePlayers.length === 0 ? (
+          <div className="col-span-full text-center py-20 text-gray-600 font-black uppercase tracking-widest text-xs">
+            Aucun opérateur en ligne pour le moment.
+          </div>
+        ) : (
+          activePlayers.map((player) => (
+            <div 
+              key={player.id}
+              onClick={() => setSelectedPlayer(player)}
+              className="group relative border border-white/5 aspect-video bg-black overflow-hidden hover:border-[#00FFC2]/50 transition-all cursor-pointer shadow-2xl hover:scale-[1.02]"
+            >
+              <div className="absolute inset-0 z-0 bg-zinc-900 animate-pulse" />
+              
+              {/* Card UI */}
+              <div className="absolute inset-0 p-6 flex flex-col justify-between z-10 pointer-events-none">
+                <div className="flex justify-between items-start">
+                  <span className="bg-black/80 px-2 py-1 border border-white/10 text-[9px] font-black uppercase italic tracking-widest text-white">
+                    OP_{player.id.substring(0, 6)}
+                  </span>
+                  <div className="flex items-center gap-2">
+                     <div className="w-2 h-2 rounded-full bg-red-600 animate-ping" />
+                     <span className="text-red-500 text-[9px] font-black uppercase italic">Live</span>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-[8px] text-gray-500 uppercase font-black mb-1">Target_Bounty</div>
+                  <div className="text-3xl text-[#00FFC2] font-black italic tracking-tighter">${player.bounty}</div>
                 </div>
               </div>
-              <div className="text-right">
-                <div className="text-[8px] text-gray-500 uppercase font-black mb-1">Current_Bounty</div>
-                <div className="text-3xl text-[#00FFC2] font-black italic tracking-tighter">${player.bounty || '4,500'}</div>
-              </div>
+              
+              {/* Hover Scanline Effect */}
+              <div className="absolute inset-0 bg-[#00FFC2]/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
             </div>
-            
-            {/* Hover Scanline Effect */}
-            <div className="absolute inset-0 bg-[#00FFC2]/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-          </div>
-        ))}
+          ))
+        )}
       </div>
     </main>
   );
