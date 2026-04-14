@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
 import { Radio, Lock, Unlock } from 'lucide-react';
 
-// Initialisation de Supabase
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "", 
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
@@ -18,15 +17,12 @@ export default function NordVantixHome() {
 
   useEffect(() => {
     setBootSequence(true);
-
-    // 1. Vérifie si l'utilisateur est DÉJÀ connecté au chargement de la page
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       setIsAuthenticated(!!session);
     };
     checkAuth();
 
-    // 2. Écoute les changements (se connecte ou se déconnecte en temps réel)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setIsAuthenticated(!!session);
     });
@@ -34,81 +30,72 @@ export default function NordVantixHome() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Fonction pour bloquer l'accès à la zone Opérateur
   const handleOperatorClick = (e: React.MouseEvent) => {
     e.preventDefault();
     if (isAuthenticated) {
-      router.push('/operator'); // Autorisé
+      router.push('/operator');
     } else {
-      router.push('/register'); // Bloqué -> Redirigé vers connexion/inscription
+      router.push('/register');
     }
   };
 
   return (
-    <main className="h-[calc(100vh-64px)] w-full bg-black flex flex-col items-center justify-center relative overflow-hidden font-mono">
+    // CHANGEMENT ICI : min-h-screen au lieu de h-[calc...] et overflow-y-auto pour pouvoir scroller sur cell
+    <main className="min-h-[calc(100vh-64px)] w-full bg-black flex flex-col items-center justify-center relative overflow-x-hidden overflow-y-auto font-mono py-12 px-4">
+      
       {/* EFFET DE SOL */}
       <div className="grid-floor opacity-30" />
       
-      {/* OVERLAY DE SCAN TACTIQUE */}
-      <div className="absolute inset-0 pointer-events-none border-[20px] border-white/5 z-20" />
+      {/* OVERLAY DE SCAN TACTIQUE - Caché sur petit écran pour plus de clarté */}
+      <div className="absolute inset-0 pointer-events-none border-[10px] md:border-[20px] border-white/5 z-20 hidden sm:block" />
       
-      <div className={`z-10 text-center space-y-12 transition-all duration-1000 ${bootSequence ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
+      <div className={`z-10 text-center space-y-8 md:space-y-12 transition-all duration-1000 w-full max-w-4xl ${bootSequence ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
         
         {/* LE MONOLITHE */}
         <div className="relative group">
-          <h1 className="pulse-monolith cursor-default">
+          <h1 className="text-6xl md:text-8xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white to-white/20 pulse-monolith cursor-default">
             PULSE
           </h1>
-          <div className="absolute -top-8 left-1/2 -translate-x-1/2 text-[10px] text-[#a855f7] tracking-[1em] font-black uppercase animate-pulse">
+          <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-[8px] md:text-[10px] text-[#a855f7] tracking-[0.5em] md:tracking-[1em] font-black uppercase animate-pulse whitespace-nowrap">
             {isAuthenticated ? 'System_Authenticated' : 'Public_Access_Mode'}
           </div>
         </div>
 
-        {/* NAVIGATION CENTRALE STYLE "COMMAND CENTER" */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto px-6">
+        {/* NAVIGATION CENTRALE - Changement du gap et padding pour mobile */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 w-full max-w-sm md:max-w-4xl mx-auto">
           
-          {/* ACCÈS WATCHER (100% PUBLIC) */}
-          <Link href="/terminal" className="group p-8 bg-black/40 backdrop-blur-xl border border-[#a855f7]/20 rounded-2xl hover:border-[#a855f7] transition-all hover:shadow-[0_0_30px_rgba(168,85,247,0.1)]">
-            <div className="flex flex-col items-center gap-4">
-              <Radio size={32} className="text-[#a855f7] group-hover:scale-110 transition-transform" />
-              <div>
-                <span className="block text-white font-black text-xl italic uppercase tracking-widest">Watcher_Hub</span>
-                <span className="text-[9px] text-gray-500 uppercase font-bold tracking-widest">Connect to global nodes</span>
-              </div>
+          <Link href="/terminal" className="group p-6 md:p-8 bg-black/40 backdrop-blur-xl border border-[#a855f7]/20 rounded-2xl hover:border-[#a855f7] transition-all flex flex-col items-center gap-4">
+            <Radio size={28} className="text-[#a855f7] group-hover:scale-110 transition-transform" />
+            <div className="text-center">
+              <span className="block text-white font-black text-lg md:text-xl italic uppercase tracking-widest">Watcher_Hub</span>
+              <span className="text-[8px] text-gray-500 uppercase font-bold tracking-widest">Connect to global nodes</span>
             </div>
           </Link>
 
-          {/* ACCÈS OPERATOR (PRIVÉ / PROTÉGÉ) */}
-          <button onClick={handleOperatorClick} className="group p-8 bg-white text-black rounded-2xl hover:scale-105 transition-all shadow-[0_0_50px_rgba(255,255,255,0.1)] text-left w-full">
-            <div className="flex flex-col items-center gap-4">
-              
-              {/* L'ICÔNE CHANGE ICI EN FONCTION DE L'AUTHENTIFICATION */}
-              {isAuthenticated ? (
-                <Unlock size={32} className="group-hover:rotate-12 transition-transform text-[#00FFC2]" />
-              ) : (
-                <Lock size={32} className="group-hover:rotate-12 transition-transform" />
-              )}
-
-              <div className="text-center">
-                <span className="block font-black text-xl italic uppercase tracking-widest">Initialize_Ops</span>
-                <span className="text-[9px] opacity-60 uppercase font-bold tracking-widest">
-                  {isAuthenticated ? 'Secure operator uplink' : 'Login Required'}
-                </span>
-              </div>
+          <button onClick={handleOperatorClick} className="group p-6 md:p-8 bg-white text-black rounded-2xl hover:scale-[1.02] md:hover:scale-105 transition-all text-left w-full flex flex-col items-center gap-4 shadow-xl">
+            {isAuthenticated ? (
+              <Unlock size={28} className="group-hover:rotate-12 transition-transform text-[#00FFC2]" />
+            ) : (
+              <Lock size={28} className="group-hover:rotate-12 transition-transform" />
+            )}
+            <div className="text-center">
+              <span className="block font-black text-lg md:text-xl italic uppercase tracking-widest">Initialize_Ops</span>
+              <span className="text-[8px] opacity-60 uppercase font-bold tracking-widest">
+                {isAuthenticated ? 'Secure operator uplink' : 'Login Required'}
+              </span>
             </div>
           </button>
-          
         </div>
 
-        {/* DATA FEED (Bas de page) */}
-        <div className="pt-10 flex gap-12 justify-center opacity-40">
+        {/* DATA FEED - flex-wrap pour que ça passe sur deux lignes si besoin sur mobile */}
+        <div className="pt-6 md:pt-10 flex flex-wrap gap-4 md:gap-12 justify-center opacity-40">
            {['Encryption: AES-256', isAuthenticated ? 'Status: Authenticated' : 'Status: Public', 'Signal: 100%'].map((info, i) => (
-             <div key={i} className="text-[8px] font-black uppercase tracking-[0.4em] text-white/50">{info}</div>
+             <div key={i} className="text-[7px] md:text-[8px] font-black uppercase tracking-[0.2em] md:tracking-[0.4em] text-white/50">{info}</div>
            ))}
         </div>
       </div>
 
-      {/* EFFET DE SCANLINE CSS */}
+      {/* EFFET DE SCANLINE */}
       <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.1)_50%),linear-gradient(90deg,rgba(168,85,247,0.02),rgba(0,0,0,0),rgba(34,211,238,0.02))] bg-[size:100%_4px,3px_100%] z-30" />
     </main>
   );
