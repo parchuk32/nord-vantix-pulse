@@ -498,6 +498,11 @@ export default function PulseOperatorHub() {
             <LiveKitRoom 
               video={true} 
               audio={true} 
+              options={{
+                videoCaptureDefaults: {
+                  resolution: { width: 1920, height: 1080, frameRate: 30 }
+                }
+              }}
               token={liveToken} 
               serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL} 
               connect={true} 

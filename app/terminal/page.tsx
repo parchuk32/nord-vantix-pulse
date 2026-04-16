@@ -1,7 +1,8 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { LiveKitRoom, useTracks, VideoTrack } from '@livekit/components-react';
+// MODIFICATION : Ajout de RoomAudioRenderer dans les imports
+import { LiveKitRoom, useTracks, VideoTrack, RoomAudioRenderer } from '@livekit/components-react';
 import { Track } from 'livekit-client';
 import { ChevronLeft, TrendingUp, MessageSquare, Radio } from 'lucide-react';
 import '@livekit/components-styles';
@@ -29,7 +30,7 @@ export default function WatcherTerminal() {
   const [activePlayers, setActivePlayers] = useState<any[]>([]);
   const [selectedPlayer, setSelectedPlayer] = useState<any>(null);
   
-  // NOUVEAU : Stockage du vrai token du Watcher
+  // Stockage du vrai token du Watcher
   const [watcherToken, setWatcherToken] = useState("");
 
   const fetchSessions = async () => {
@@ -50,7 +51,7 @@ export default function WatcherTerminal() {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
-  // NOUVEAU : Obtenir un token quand on clique sur un joueur
+  // Obtenir un token quand on clique sur un joueur
   useEffect(() => {
     if (!selectedPlayer) {
       setWatcherToken("");
@@ -89,7 +90,7 @@ export default function WatcherTerminal() {
           </button>
 
           <div className="flex-1 relative bg-[#080808] aspect-video md:aspect-auto">
-             {/* NOUVEAU : On s'assure qu'on a le token avant de lancer LiveKit */}
+             {/* On s'assure qu'on a le token avant de lancer LiveKit */}
              {watcherToken ? (
                <LiveKitRoom 
                  video={false} // Le spectateur ne diffuse pas sa vidéo
@@ -100,6 +101,8 @@ export default function WatcherTerminal() {
                  className="h-full w-full"
                >
                   <VideoRenderer />
+                  {/* MODIFICATION : Ce composant va capter et jouer le son de l'Opérateur */}
+                  <RoomAudioRenderer />
                </LiveKitRoom>
              ) : (
                <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#050505]">
