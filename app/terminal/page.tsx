@@ -36,7 +36,8 @@ export default function WatcherTerminal() {
     const { data } = await supabase
       .from('missions')
       .select('*')
-      .in('status', ['approved', 'active'])
+      // MODIFICATION : On ne demande QUE les missions 'active' (en direct)
+      .eq('status', 'active') 
       .order('created_at', { ascending: false });
     if (data) setActivePlayers(data);
   };
