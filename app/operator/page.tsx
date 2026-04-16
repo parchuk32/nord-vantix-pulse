@@ -14,6 +14,226 @@ import '@livekit/components-styles';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL || "", process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "");
 
+// ============================================================================
+// 1. COMPOSANTS UI POUR LES PARAMÈTRES (INJECTÉS DANS LE HUB)
+// ============================================================================
+
+function SettingRow({ label, desc, children }: { label: string; desc?: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-4 py-3 border-b border-white/5 hover:bg-white/[0.02] transition-colors rounded px-2">
+      <div className="flex flex-col max-w-[70%]">
+        <span className="text-sm font-bold text-gray-200">{label}</span>
+        {desc && <span className="text-[10px] text-gray-500 uppercase tracking-wider mt-0.5">{desc}</span>}
+      </div>
+      <div className="flex-shrink-0">{children}</div>
+    </div>
+  );
+}
+
+function Toggle({ value, onChange, accent = '#00FFC2' }: { value: boolean; onChange: (v: boolean) => void; accent?: string }) {
+  return (
+    <button
+      onClick={() => onChange(!value)}
+      className={`w-10 h-5 rounded-full transition-all relative flex-shrink-0 border ${
+        value ? 'bg-opacity-20 border-opacity-50' : 'bg-black border-white/20'
+      }`}
+      style={{
+        backgroundColor: value ? `${accent}33` : '',
+        borderColor: value ? accent : '',
+        boxShadow: value ? `0 0 8px ${accent}55` : 'none',
+      }}
+    >
+      <span
+        className={`absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white transition-all duration-200`}
+        style={{ left: value ? 'calc(100% - 16px)' : '2px', backgroundColor: value ? accent : '#9ca3af' }}
+      />
+    </button>
+  );
+}
+
+function Select<T extends string>({ value, options, onChange }: { value: T; options: { label: string; value: T }[]; onChange: (v: T) => void; }) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value as T)}
+      className="bg-black border border-white/10 text-white text-xs rounded px-2 py-1.5 outline-none focus:border-[#00FFC2]/50"
+    >
+      {options.map((o) => (
+        <option key={o.value} value={o.value} className="bg-[#0a0f1a]">
+          {o.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function SectionTitle({ icon, title }: { icon: string; title: string }) {
+  return (
+    <div className="flex items-center gap-3 mb-6 pb-3 border-b border-[#00FFC2]/20">
+      <span className="text-xl">{icon}</span>
+      <h2 className="text-sm font-black tracking-[0.15em] text-[#00FFC2] uppercase">{title}</h2>
+    </div>
+  );
+}
+
+// --- SOUS-SECTIONS DE PARAMÈTRES ---
+
+function AVSection() {
+  const { settings, updateSettings } = useDeployStore();
+  const s = settings.av;
+  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
+
+  useEffect(() => {
+    navigator.mediaDevices.enumerateDevices().then(setDevices).catch(() => {});
+  }, []);
+
+  const mics = devices.filter((d) => d.kind === 'audioinput');
+  const cams = devices.filter((d) => d.kind === 'videoinput');
+  const makeOptions = (devs: MediaDeviceInfo[]) =>
+    [{ label: 'Par défaut', value: '' }, ...devs.map((d) => ({ label: d.label || d.deviceId, value: d.deviceId }))];
+
+  return (
+    <div className="space-y-6 animate-in fade-in duration-500">
+      <SectionTitle icon="🎥" title="Audio / Vidéo & Contre-Mesures" />
+      <div>
+        <p className="text-xs text-gray-500 font-bold tracking-widest uppercase mb-3 border-b border-white/10 pb-1">Périphériques Standard</p>
+        <SettingRow label="Caméra locale" desc="Activer la vidéo">
+          <Toggle value={s.cameraEnabled} onChange={(v) => updateSettings('av', { cameraEnabled: v })} />
+        </SettingRow>
+        <SettingRow label="Microphone" desc="Activer la capture audio">
+          <Toggle value={s.micEnabled} onChange={(v) => updateSettings('av', { micEnabled: v })} />
+        </SettingRow>
+        {mics.length > 0 && (
+          <SettingRow label="Microphone actif">
+            <Select value={s.selectedMicId ?? ''} options={makeOptions(mics)} onChange={(v) => updateSettings('av', { selectedMicId: v || null })} />
+          </SettingRow>
+        )}
+        {cams.length > 0 && (
+          <SettingRow label="Caméra active">
+            <Select value={s.selectedCamId ?? ''} options={makeOptions(cams)} onChange={(v) => updateSettings('av', { selectedCamId: v || null })} />
+          </SettingRow>
+        )}
+      </div>
+      <div className="mt-8">
+        <p className="text-xs text-[#00FFC2] font-bold tracking-widest uppercase mb-3 border-b border-[#00FFC2]/20 pb-1">Contre-Mesures Média</p>
+        <SettingRow label="Brouilleur Vocal (Voice Scrambler)" desc="Modifie le pitch pour empêcher l'identification vocale">
+          <Toggle value={s.voiceScrambler} onChange={(v) => updateSettings('av', { voiceScrambler: v })} accent="#a855f7" />
+        </SettingRow>
+        <SettingRow label="Filigrane Dynamique (Watermark)" desc="Incruste des hashs invisibles pour tracker les fuites">
+          <Toggle value={s.dynamicWatermark} onChange={(v) => updateSettings('av', { dynamicWatermark: v })} />
+        </SettingRow>
+        <SettingRow label="Protection DRM Anti-Capture" desc="Tente de noircir l'écran lors d'enregistrements (OBS, etc.)">
+          <Toggle value={s.antiScreenCapture} onChange={(v) => updateSettings('av', { antiScreenCapture: v })} />
+        </SettingRow>
+      </div>
+    </div>
+  );
+}
+
+function PrivacySection() {
+  const { settings, updateSettings } = useDeployStore();
+  const s = settings.privacy;
+
+  return (
+    <div className="space-y-6 animate-in fade-in duration-500">
+      <SectionTitle icon="🔐" title="Confidentialité & Sécurité" />
+      <div>
+        <p className="text-xs text-[#00FFC2] font-bold tracking-widest uppercase mb-3 border-b border-[#00FFC2]/20 pb-1">Mesures Anti-Pistage</p>
+        <SettingRow label="Protocole Fantôme (Ghost Mode)" desc="Vous rend indétectable sur les radars Watchers">
+          <Toggle value={s.ghostProtocol} onChange={(v) => updateSettings('privacy', { ghostProtocol: v })} accent="#FF4444" />
+        </SettingRow>
+        <SettingRow label="Spoofing Matériel" desc="Falsifie l'empreinte WebGL/Canvas de votre machine">
+          <Toggle value={s.hardwareSpoofing} onChange={(v) => updateSettings('privacy', { hardwareSpoofing: v })} />
+        </SettingRow>
+        <SettingRow label="Masquage IP (Onion Routing)" desc="Fait transiter le flux via 3 nœuds relais cryptés">
+          <Toggle value={s.ipMasking} onChange={(v) => updateSettings('privacy', { ipMasking: v })} />
+        </SettingRow>
+      </div>
+      <div className="mt-8">
+        <p className="text-xs text-[#00FFC2] font-bold tracking-widest uppercase mb-3 border-b border-[#00FFC2]/20 pb-1">Cryptographie</p>
+        <SettingRow label="Chiffrement Zero-Knowledge (E2E)" desc="Nord.Vantix ne stocke aucune clé de déchiffrement">
+          <Toggle value={s.zeroKnowledgeE2E} onChange={(v) => updateSettings('privacy', { zeroKnowledgeE2E: v })} />
+        </SettingRow>
+        <SettingRow label="Double authentification (2FA)" desc="Requiert un jeton physique ou biométrique">
+          <Toggle value={s.mfaEnabled} onChange={(v) => updateSettings('privacy', { mfaEnabled: v })} />
+        </SettingRow>
+      </div>
+      <div className="mt-8 p-4 rounded-lg bg-black/40 border border-white/5 relative overflow-hidden">
+        <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(0,255,194,0.03)_50%,transparent_75%)] bg-[length:250%_250%] animate-pulse pointer-events-none" />
+        <div className="flex items-center justify-between mb-2 relative z-10">
+          <span className="text-xs font-bold uppercase tracking-widest text-white/50">Niveau d'Armure Numérique</span>
+          <span className="text-sm font-black font-mono tracking-widest" style={{ color: s.securityScore >= 80 ? '#00FFC2' : s.securityScore >= 50 ? '#FFD600' : '#FF4444' }}>
+            {s.securityScore}/100
+          </span>
+        </div>
+        <div className="h-2 bg-white/5 rounded-full overflow-hidden relative z-10 border border-white/10">
+          <div className="h-full transition-all duration-1000" style={{ width: `${s.securityScore}%`, background: s.securityScore >= 80 ? '#00FFC2' : s.securityScore >= 50 ? '#FFD600' : '#FF4444', boxShadow: `0 0 10px ${s.securityScore >= 80 ? '#00FFC2' : '#FFD600'}` }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DataSection() {
+  const { settings, updateSettings, resetSettings, clearChatHistory, exportData } = useDeployStore();
+  const s = settings.data;
+
+  const handleExport = () => {
+    const json = exportData();
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `nord-vantix-classified-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="space-y-6 animate-in fade-in duration-500">
+      <SectionTitle icon="📊" title="Données & Protocoles" />
+      <div>
+        <SettingRow label="Sauvegarde cloud cryptée" desc="Synchronisation AES-256 des préférences">
+          <Toggle value={s.cloudBackup} onChange={(v) => updateSettings('data', { cloudBackup: v })} />
+        </SettingRow>
+        <SettingRow label="Auto-Destruction des Logs (Burn)" desc="Purge les caches locaux à chaque déconnexion">
+          <Toggle value={s.autoBurnLogs} onChange={(v) => updateSettings('data', { autoBurnLogs: v })} accent="#FF4444" />
+        </SettingRow>
+      </div>
+      <div className="mt-8 p-5 rounded-lg border border-red-500/30 bg-red-500/5 relative overflow-hidden group">
+        <div className="absolute top-0 left-0 w-full h-1 bg-red-500/20" />
+        <h3 className="text-red-500 font-black tracking-widest text-sm uppercase mb-1">Protocole d'Urgence (Kill Switch)</h3>
+        <p className="text-xs text-red-400/60 mb-4">Attention: Ceci effacera définitivement toutes les données locales, l'historique et brisera toutes les connexions actives.</p>
+        <SettingRow label="Armer le Kill Switch" desc="Déverrouille le bouton d'autodestruction">
+          <Toggle value={s.panicWipeReady} onChange={(v) => updateSettings('data', { panicWipeReady: v })} accent="#FF4444" />
+        </SettingRow>
+        <button
+          disabled={!s.panicWipeReady}
+          onClick={() => {
+             if(confirm("☢ DANGER : Confirmez-vous la purge totale du système ?")) {
+                 clearChatHistory();
+                 resetSettings();
+                 alert("Purge exécutée.");
+             }
+          }}
+          className="w-full mt-4 py-3 bg-red-600 text-white font-black uppercase text-xs tracking-[0.2em] rounded border border-red-400 disabled:opacity-30 disabled:grayscale transition-all hover:bg-red-500 hover:shadow-[0_0_20px_rgba(255,0,0,0.5)] active:scale-95"
+        >
+          {s.panicWipeReady ? "☢ EXÉCUTER LA PURGE TOTALE ☢" : "SYSTÈME VERROUILLÉ"}
+        </button>
+      </div>
+      <div className="pt-4 border-t border-white/5 space-y-3">
+        <button onClick={handleExport} className="w-full py-2.5 rounded-lg border border-[#00FFC2]/20 text-[#00FFC2] text-xs font-mono tracking-wider hover:bg-[#00FFC2]/5 transition-colors">
+          ⬇ Télécharger l'Archive Sécurisée (JSON)
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// 2. LE HUB OPÉRATEUR PRINCIPAL
+// ============================================================================
+
 export default function PulseOperatorHub() {
   const router = useRouter();
   const store = useDeployStore();
@@ -22,7 +242,7 @@ export default function PulseOperatorHub() {
   const [user, setUser] = useState<any>(null);
   const [isLive, setIsLive] = useState(false);
   const [activeTab, setActiveTab] = useState<'hub' | 'wallet' | 'settings'>('hub');
-  const [activeSubTab, setActiveSubTab] = useState('General');
+  const [activeSubTab, setActiveSubTab] = useState('privacy'); // Par défaut sur confidentialité
   
   const [deploying, setDeploying] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
@@ -38,7 +258,12 @@ export default function PulseOperatorHub() {
   const [liveToken, setLiveToken] = useState("");
   const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
 
-  const subTabs = ['General', 'Security', 'Billing', 'Notifications', 'Referral', 'Sharing'];
+  // Le menu de navigation INTERNE des paramètres
+  const SETTINGS_NAV = [
+    { id: 'privacy', icon: '🔐', label: 'Sécurité' },
+    { id: 'av', icon: '🎥', label: 'Vidéo & Scrambler' },
+    { id: 'data', icon: '📊', label: 'Données & Kill Switch' },
+  ];
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -55,7 +280,6 @@ export default function PulseOperatorHub() {
 
   useEffect(() => {
     if (!user) return;
-    
     const channel = supabase.channel('realtime_missions')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'missions', filter: `user_id=eq.${user.id}` }, 
       (payload) => {
@@ -66,17 +290,11 @@ export default function PulseOperatorHub() {
           showToast(`MISSION REJETÉE par le Commandement.`, 'error');
         }
       }).subscribe();
-
     return () => { supabase.removeChannel(channel); };
   }, [user]);
 
   const fetchMissions = async (userId: string) => {
-    const { data, error } = await supabase
-      .from('missions')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
-    
+    const { data, error } = await supabase.from('missions').select('*').eq('user_id', userId).order('created_at', { ascending: false });
     if (!error && data) setMissions(data);
   };
 
@@ -85,22 +303,10 @@ export default function PulseOperatorHub() {
     setTimeout(() => setToast(null), 4000);
   };
 
-  const copyToClipboard = async (text: string, successMessage: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      showToast(successMessage);
-    } catch (err) {
-      showToast("Erreur lors de la copie", "error");
-    }
-  };
-
   const handleSaveSettings = async () => {
     store.addLog("SYNC: Deploying settings to secure cloud...");
     try {
-      const { error } = await supabase.from('profiles').upsert(
-        { id: user.id, settings: store.settings },
-        { onConflict: 'id' }
-      );
+      const { error } = await supabase.from('profiles').upsert({ id: user.id, settings: store.settings }, { onConflict: 'id' });
       if (error) throw error;
       showToast("Configuration sauvegardée avec succès sur le serveur", "success");
     } catch (err: any) {
@@ -108,41 +314,13 @@ export default function PulseOperatorHub() {
     }
   };
 
-  const handlePasswordReset = async () => {
-    if (!user?.email) return;
-    const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
-
-    if (error) {
-      showToast(error.message, "error");
-    } else {
-      showToast(`Lien de sécurité envoyé à ${user.email}`, "success");
-    }
-  };
-
   const submitMissionProposal = async () => {
-    if (!missionDesc || !minViewers || !requestedBounty) {
-      showToast("Toutes les données tactiques sont requises.", "error");
-      return;
-    }
-    
+    if (!missionDesc || !minViewers || !requestedBounty) return showToast("Toutes les données tactiques sont requises.", "error");
     setIsSubmitting(true);
-
-    const { error } = await supabase.from('missions').insert([{
-      user_id: user.id,
-      objective: missionDesc,
-      min_viewers: parseInt(minViewers),
-      bounty: parseFloat(requestedBounty),
-      risk_level: riskLevel,
-      status: 'pending'
-    }]);
-
+    const { error } = await supabase.from('missions').insert([{ user_id: user.id, objective: missionDesc, min_viewers: parseInt(minViewers), bounty: parseFloat(requestedBounty), risk_level: riskLevel, status: 'pending' }]);
     setIsSubmitting(false);
-
-    if (error) {
-      showToast(`Échec de la transmission: ${error.message}`, "error");
-    } else {
+    if (error) showToast(`Échec de la transmission: ${error.message}`, "error");
+    else {
       showToast("Proposition envoyée au Commandement.", "success");
       setMissionDesc(""); setMinViewers(""); setRequestedBounty("");
       fetchMissions(user.id);
@@ -150,97 +328,48 @@ export default function PulseOperatorHub() {
   };
 
   const signLegalWaiver = async () => {
-    if (!sigCanvas.current || sigCanvas.current.isEmpty()) {
-      return showToast("Signature requise.", "error");
-    }
-    
+    if (!sigCanvas.current || sigCanvas.current.isEmpty()) return showToast("Signature requise.", "error");
     const signatureData = sigCanvas.current.getTrimmedCanvas().toDataURL('image/png');
-    
-    const { error } = await supabase.from('operator_waivers').insert([{ 
-      user_id: user.id, 
-      contract_version: '4.0.2', 
-      signature_data: signatureData 
-    }]);
-
-    if (error) {
-      showToast(`Erreur d'archivage légal: ${error.message}`, "error");
-      return;
-    }
-
+    const { error } = await supabase.from('operator_waivers').insert([{ user_id: user.id, contract_version: '4.0.2', signature_data: signatureData }]);
+    if (error) return showToast(`Erreur d'archivage légal: ${error.message}`, "error");
     store.setSignature(signatureData);
     store.setModuleStatus('safetyValid', true);
     setShowWaiver(false);
     showToast("Contrat légal signé et archivé !");
   };
 
-  // On inclut les missions "active" pour qu'elles survivent au refresh
   const activeMission = missions.find(m => m.status === 'approved' || m.status === 'active');
 
-  // Auto-reconnexion si on rafraîchit la page
   useEffect(() => {
     const isLiveMode = localStorage.getItem('pulse_live_mode') === 'true';
     if (isLiveMode && activeMission?.status === 'active' && store.safetyValid && !isLive && !deploying && !liveToken) {
-      handleDeploy(true); // Reconnexion instantanée sans compte à rebours
+      handleDeploy(true);
     }
   }, [activeMission, store.safetyValid, isLive, deploying, liveToken]);
 
-  // handleDeploy demande un vrai token à l'API et met à jour la BDD
   const handleDeploy = async (instant = false) => {
-    if (!store.safetyValid || !activeMission) {
-      showToast("Contrat légal non signé ou aucune mission approuvée.", "error");
-      return;
-    }
-    
+    if (!store.safetyValid || !activeMission) return showToast("Contrat légal non signé ou aucune mission approuvée.", "error");
     setDeploying(true);
-
     try {
       const resp = await fetch(`/api/get-participant-token?room=room-${user.id}&username=OPERATOR-${user.id}`);
       const data = await resp.json();
-      
-      if (!data.token) {
-        throw new Error("Connexion LiveKit rejetée par le serveur.");
-      }
-      
+      if (!data.token) throw new Error("Connexion LiveKit rejetée par le serveur.");
       setLiveToken(data.token);
-      
-      // On sauvegarde dans le navigateur qu'on est en LIVE
       localStorage.setItem('pulse_live_mode', 'true');
-      
-      // On prévient la base de données que le live a commencé
       await supabase.from('missions').update({ status: 'active' }).eq('id', activeMission.id);
-
-      if (instant) {
-        setIsLive(true);
-        setDeploying(false);
-        return;
-      }
-
+      if (instant) { setIsLive(true); setDeploying(false); return; }
       let timer = 3;
       setCountdown(timer);
       const interval = setInterval(() => {
-        timer--;
-        setCountdown(timer);
-        if (timer === 0) {
-          clearInterval(interval);
-          setIsLive(true);
-          setDeploying(false);
-        }
+        timer--; setCountdown(timer);
+        if (timer === 0) { clearInterval(interval); setIsLive(true); setDeploying(false); }
       }, 1000);
-
-    } catch (e: any) {
-      setDeploying(false);
-      showToast(`Échec Uplink: ${e.message}`, "error");
-    }
+    } catch (e: any) { setDeploying(false); showToast(`Échec Uplink: ${e.message}`, "error"); }
   };
 
-  // Fonction pour VRAIMENT couper le live
   const abortMission = async () => {
-    setIsLive(false);
-    setLiveToken("");
-    localStorage.removeItem('pulse_live_mode');
-    
+    setIsLive(false); setLiveToken(""); localStorage.removeItem('pulse_live_mode');
     if (activeMission) {
-      // On passe la mission en "completed" pour la retirer de la vue des Watchers
       await supabase.from('missions').update({ status: 'completed' }).eq('id', activeMission.id);
       showToast("Mission annulée. Signal terminé.", "error");
     }
@@ -259,6 +388,7 @@ export default function PulseOperatorHub() {
         </div>
       )}
 
+      {/* MENU PRINCIPAL HUB */}
       {!isLive && (
         <nav className="fixed bottom-0 w-full md:relative md:w-64 bg-black/90 border-t md:border-t-0 md:border-r border-white/5 flex md:flex-col p-2 md:p-6 gap-2 z-40 backdrop-blur-lg safe-area-bottom">
           {['hub', 'wallet', 'settings'].map((tab) => (
@@ -273,58 +403,34 @@ export default function PulseOperatorHub() {
         </nav>
       )}
 
-      <section className="flex-1 relative flex flex-col overflow-hidden pb-32 md:pb-0">
+      <section className="flex-1 relative flex flex-col overflow-hidden pb-20 md:pb-0">
         
+        {/* ================================================================= */}
+        {/* ONGLET 1 : LE HUB PRINCIPAL                                       */}
+        {/* ================================================================= */}
         {!isLive && activeTab === 'hub' && (
-          <div className="h-full overflow-y-auto p-4 md:p-10 pb-40 md:pb-10 max-w-7xl mx-auto w-full grid grid-cols-12 gap-4 md:gap-6 scrollbar-hide">
+          <div className="h-full overflow-y-auto p-4 md:p-10 max-w-7xl mx-auto w-full grid grid-cols-12 gap-4 md:gap-6 scrollbar-hide">
             <div className="col-span-12 border-b border-[#00FFC2]/20 pb-6 flex justify-between items-end">
               <div>
                 <h2 className="text-3xl md:text-5xl font-black uppercase italic tracking-tighter">Mission_Protocol</h2>
                 <div className="flex flex-wrap gap-2 mt-3">
                   <StatusTag label="CONTRACT" ok={!!activeMission} />
                   <StatusTag label="SAFE" ok={store.safetyValid} />
-                  <StatusTag label="UPLINK" ok={store.safetyValid && !!activeMission} />
                 </div>
               </div>
             </div>
 
             <div className="col-span-12 lg:col-span-7 space-y-4 md:space-y-6">
-              
               <div className="bg-zinc-900/10 border border-white/5 p-6 md:p-8 rounded-2xl space-y-5">
                 <div className="flex items-center justify-between border-b border-white/5 pb-4">
-                  <label className="text-[10px] font-black uppercase text-gray-500 tracking-widest flex items-center gap-2">
-                    <Crosshair size={14} className="text-[#00FFC2]" /> Draft_New_Contract
-                  </label>
-                  <span className="text-[9px] text-gray-500 italic">Secure Channel</span>
+                  <label className="text-[10px] font-black uppercase text-gray-500 tracking-widest flex items-center gap-2"><Crosshair size={14} className="text-[#00FFC2]" /> Draft_New_Contract</label>
                 </div>
-                
                 <InputBox label="Tactical Objective / Rules" type="textarea" value={missionDesc} onChange={setMissionDesc} placeholder="Ex: Survivre 30 min sans armure..." />
-                
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <InputBox label="Minimum Viewers Required" type="number" value={minViewers} onChange={setMinViewers} placeholder="Ex: 50" />
                   <InputBox label="Requested Bounty ($)" type="number" value={requestedBounty} onChange={setRequestedBounty} placeholder="Ex: 100" />
                 </div>
-
-                <div className="space-y-2">
-                  <label className="text-[9px] font-black uppercase text-gray-500 tracking-widest block">Threat Level Assessment</label>
-                  <div className="flex gap-2">
-                    {['LOW', 'MID', 'EXTREME'].map((lvl) => (
-                      <button key={lvl} onClick={() => setRiskLevel(lvl as any)}
-                        className={`flex-1 py-3 rounded-lg text-[9px] font-black tracking-widest uppercase transition-all border ${
-                          riskLevel === lvl 
-                            ? lvl === 'EXTREME' ? 'bg-red-600 text-white border-red-500 shadow-[0_0_15px_rgba(220,38,38,0.3)]' : 'bg-[#00FFC2] text-black border-[#00FFC2]'
-                            : 'bg-black text-gray-500 border-white/10 hover:border-white/30'
-                        }`}>
-                        {lvl}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <button 
-                  onClick={submitMissionProposal}
-                  disabled={isSubmitting}
-                  className="w-full py-5 bg-white text-black font-black text-xs uppercase tracking-widest rounded-xl hover:scale-[1.02] transition-all disabled:opacity-50">
+                <button onClick={submitMissionProposal} disabled={isSubmitting} className="w-full py-5 bg-white text-black font-black text-xs uppercase tracking-widest rounded-xl hover:scale-[1.02] transition-all disabled:opacity-50">
                   {isSubmitting ? <Loader2 className="animate-spin mx-auto" /> : "Transmit_Proposal_to_Command"}
                 </button>
               </div>
@@ -336,235 +442,78 @@ export default function PulseOperatorHub() {
                     <span className="text-[10px] font-black uppercase tracking-widest">Safety_Waiver</span>
                   </div>
                   {!store.safetyValid ? (
-                    <button onClick={() => setShowWaiver(true)} className="px-6 py-2.5 bg-red-600 text-white text-[10px] font-black uppercase rounded-lg shadow-lg shadow-red-600/20 hover:bg-red-500 transition-all">Sign Contract</button>
+                    <button onClick={() => setShowWaiver(true)} className="px-6 py-2.5 bg-red-600 text-white text-[10px] font-black uppercase rounded-lg">Sign Contract</button>
                   ) : <CheckCircle2 size={24} className="text-[#00FFC2]" />}
                 </div>
               </div>
             </div>
 
             <div className="col-span-12 lg:col-span-5 space-y-4">
-              
-              <div className="bg-black border border-white/10 rounded-2xl flex flex-col" style={{ height: '380px' }}>
-                <div className="flex items-center justify-between p-5 border-b border-white/5">
-                   <div className="flex items-center gap-2">
-                     <Activity size={16} className="text-[#00FFC2] animate-pulse" />
-                     <h3 className="text-[10px] font-black uppercase tracking-widest text-[#00FFC2]">Command_Uplink</h3>
-                   </div>
-                   <span className="text-[8px] text-gray-500 uppercase">{missions.length} dossiers</span>
-                </div>
-                
-                <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-hide">
-                   {missions.length === 0 ? (
-                     <p className="text-[10px] text-gray-600 uppercase tracking-widest text-center mt-10">Aucun historique de mission.</p>
-                   ) : (
-                     missions.map((msg) => (
-                       <div key={msg.id} className={`p-4 rounded-xl border flex flex-col gap-2 ${
-                         msg.status === 'approved' ? 'bg-[#00FFC2]/10 border-[#00FFC2]/30' :
-                         msg.status === 'pending' ? 'bg-yellow-500/5 border-yellow-500/20' :
-                         msg.status === 'rejected' ? 'bg-red-500/5 border-red-500/20' :
-                         'bg-white/5 border-white/10'
-                       }`}>
-                         <div className="flex justify-between items-start">
-                           <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded ${
-                             msg.status === 'approved' || msg.status === 'active' ? 'bg-[#00FFC2] text-black' :
-                             msg.status === 'pending' ? 'bg-yellow-500 text-black' :
-                             msg.status === 'rejected' ? 'bg-red-500 text-white' : 'bg-gray-500 text-white'
-                           }`}>
-                             {msg.status}
-                           </span>
-                           <span className="text-[10px] font-black text-white">${msg.bounty}</span>
-                         </div>
-                         <p className="text-[10px] text-gray-300 line-clamp-2 italic">"{msg.objective}"</p>
-                         <div className="flex justify-between items-center mt-1">
-                            <span className="text-[8px] text-gray-500">Risque: {msg.risk_level}</span>
-                            <span className="text-[8px] text-gray-500">Viewers min: {msg.min_viewers}</span>
-                         </div>
-                       </div>
-                     ))
-                   )}
-                </div>
-              </div>
-
               <button 
                 onClick={() => handleDeploy(false)}
                 disabled={!store.safetyValid || !activeMission || deploying}
-                className={`w-full py-8 rounded-2xl flex flex-col items-center justify-center gap-1 transition-all ${
-                  store.safetyValid && activeMission 
-                    ? 'bg-[#00FFC2] text-black hover:bg-white hover:scale-[1.02] shadow-[0_0_40px_rgba(0,255,194,0.2)]' 
-                    : 'bg-white/5 text-gray-600 cursor-not-allowed border border-white/5'
+                className={`w-full py-12 rounded-2xl flex flex-col items-center justify-center gap-1 transition-all ${
+                  store.safetyValid && activeMission ? 'bg-[#00FFC2] text-black hover:bg-white shadow-[0_0_40px_rgba(0,255,194,0.2)]' : 'bg-white/5 text-gray-600 cursor-not-allowed border border-white/5'
                 }`}>
                 <span className="font-black text-2xl uppercase italic tracking-widest flex items-center gap-3">
-                  {deploying ? (
-                    <>
-                      <Loader2 className="animate-spin text-red-500" size={28} />
-                      <span className="text-red-500">T-MINUS {countdown}</span>
-                    </>
-                  ) : activeMission ? (
-                    <>
-                      <Activity className="animate-pulse" size={28} />
-                      Deploy_Live
-                    </>
-                  ) : (
-                    'No_Active_Contract'
-                  )}
+                  {deploying ? (<><Loader2 className="animate-spin text-red-500" size={28} /><span className="text-red-500">T-MINUS {countdown}</span></>) : activeMission ? (<><Activity className="animate-pulse" size={28} /> Deploy_Live</>) : ('No_Active_Contract')}
                 </span>
-                {activeMission && !deploying && (
-                  <span className="text-[10px] font-bold uppercase tracking-widest bg-black/20 px-3 py-1 rounded-full mt-2 border border-black/10">
-                    Opération: ${activeMission.bounty} garantie
-                  </span>
-                )}
               </button>
-
             </div>
           </div>
         )}
 
+        {/* ================================================================= */}
+        {/* ONGLET 2 : LES PARAMÈTRES (INTÉGRATION DU SOUS-MENU VERTICAL)     */}
+        {/* ================================================================= */}
         {!isLive && activeTab === 'settings' && (
-          <div className="flex flex-col h-full overflow-hidden w-full">
-            <div className="px-4 pt-6 md:px-10 md:pt-10 flex-shrink-0">
-              <h2 className="text-3xl md:text-5xl font-black italic uppercase tracking-tighter mb-6">System_Config</h2>
-              <div className="flex gap-2 overflow-x-auto pb-4 scrollbar-hide border-b border-white/10 w-full">
-                {subTabs.map(tab => (
-                  <button key={tab} onClick={() => setActiveSubTab(tab)}
-                    className={`px-5 py-3 text-[10px] font-black uppercase tracking-widest whitespace-nowrap rounded-t-xl transition-all ${
-                      activeSubTab === tab ? `bg-white/10 text-white border-b-2 border-[#00FFC2]` : 'text-gray-500 hover:text-white hover:bg-white/5'
-                    }`}>
-                    {tab}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto scrollbar-hide p-4 md:p-10 max-w-4xl w-full">
+          <div className="flex h-full w-full overflow-hidden">
+            
+            {/* LE MENU VERTICAL DES PARAMETRES */}
+            <div className="w-48 md:w-64 border-r border-white/5 bg-black/40 flex flex-col p-4 gap-2 overflow-y-auto">
+              <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-4 px-2 mt-2">OS_Security_Config</h3>
               
-              {activeSubTab === 'General' && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
-                  <h3 className="text-xs font-black uppercase text-gray-500 tracking-widest">Operator Basics</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <InputBox label="Operator Handle" value={store.settings.profile?.username || ''} onChange={(v) => store.updateSettings('profile', {username: v.toUpperCase()})} />
-                    <InputBox label="Comms Email" value={store.settings.account?.email || ''} onChange={(v) => store.updateSettings('account', {email: v})} />
-                  </div>
-                  <InputBox label="Tactical Bio" type="textarea" value={store.settings.profile?.bio || ''} onChange={(v) => store.updateSettings('profile', {bio: v})} />
-                </div>
-              )}
+              {SETTINGS_NAV.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveSubTab(item.id)}
+                  className={`flex items-center gap-3 px-4 py-4 rounded-xl text-left transition-all duration-200 group ${
+                    activeSubTab === item.id ? 'bg-[#00FFC2]/10 border border-[#00FFC2]/20' : 'hover:bg-white/5'
+                  }`}
+                >
+                  <span className="text-lg flex-shrink-0 opacity-80">{item.icon}</span>
+                  <span className={`text-[10px] font-bold uppercase tracking-widest truncate ${activeSubTab === item.id ? 'text-[#00FFC2]' : 'text-gray-400'}`}>
+                    {item.label}
+                  </span>
+                </button>
+              ))}
 
-              {activeSubTab === 'Security' && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
-                  <div className="bg-[#00FFC2]/5 border border-[#00FFC2]/20 p-6 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="flex items-center gap-6">
-                      <div className="relative w-16 h-16 flex items-center justify-center">
-                        <svg className="w-full h-full -rotate-90">
-                          <circle cx="32" cy="32" r="28" fill="transparent" stroke="currentColor" strokeWidth="4" className="text-white/10" />
-                          <circle cx="32" cy="32" r="28" fill="transparent" stroke="currentColor" strokeWidth="4" strokeDasharray={175} strokeDashoffset={175 - (175 * (store.settings.privacy?.securityScore || 100)) / 100} className="text-[#00FFC2]" />
-                        </svg>
-                        <span className="absolute text-[10px] font-black italic">{store.settings.privacy?.securityScore || 100}%</span>
-                      </div>
-                      <div>
-                        <p className="text-sm font-black uppercase text-white">System Security: {store.settings.privacy?.securityScore || 100}%</p>
-                        <p className="text-[9px] text-gray-500 uppercase tracking-widest mt-1">Uplink is protected.</p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="space-y-3">
-                    <div className="p-4 bg-zinc-900/40 rounded-xl border border-white/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                      <div>
-                        <p className="text-[10px] font-black uppercase text-white">Master Access Key</p>
-                        <p className="text-[8px] text-yellow-500 uppercase font-bold mt-1">Vérification email requise pour modification</p>
-                      </div>
-                      <button onClick={handlePasswordReset} className="w-full md:w-auto px-6 py-3 border border-[#00FFC2]/50 text-[#00FFC2] rounded-lg text-[9px] font-black uppercase hover:bg-[#00FFC2] hover:text-black transition-all">
-                        Send Reset Link
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {activeSubTab === 'Billing' && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
-                  <div className="bg-black border border-white/10 p-8 rounded-3xl relative overflow-hidden group">
-                    <div className="relative z-10">
-                      <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest mb-2">Current Tier</p>
-                      <h4 className="text-4xl font-black italic text-white">{store.settings.account?.plan || 'STANDARD'}</h4>
-                      <p className="text-[9px] text-[#00FFC2] uppercase mt-4">Next billing: {store.settings.account?.nextBilling || 'N/A'}</p>
-                    </div>
-                    <Zap className="absolute -bottom-10 -right-10 w-48 h-48 text-white/5 -rotate-12 group-hover:scale-110 transition-transform" />
-                  </div>
-                </div>
-              )}
-
-              {activeSubTab === 'Notifications' && (
-                <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-300">
-                  <ToggleRow label="Push Alerts (Mobile/Web)" active={store.settings.notifications?.pushEnabled || false} onToggle={() => store.updateSettings('notifications', {pushEnabled: !store.settings.notifications.pushEnabled})} />
-                  <ToggleRow label="Tactical Comms (Live Bounties)" active={store.settings.notifications?.onAgentActivity || false} onToggle={() => store.updateSettings('notifications', {onAgentActivity: !store.settings.notifications.onAgentActivity})} />
-                </div>
-              )}
-
-              {activeSubTab === 'Referral' && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
-                  <div className="bg-zinc-900/40 border border-white/10 p-6 rounded-2xl flex flex-col md:flex-row justify-between items-center gap-4">
-                    <div className="text-center md:text-left">
-                      <p className="text-[9px] font-black uppercase text-gray-500 tracking-widest mb-1">Your Invite Code</p>
-                      <p className="text-xl font-black text-white">{store.settings.referral?.code || 'N/A'}</p>
-                    </div>
-                    <button 
-                      onClick={() => copyToClipboard(`https://app.nordvantix.com/invite/${store.settings.referral?.code}`, "Lien de parrainage copié !")} 
-                      className="w-full md:w-auto px-6 py-3 bg-white/10 rounded-lg hover:bg-white hover:text-black transition-all font-black text-[10px] uppercase">
-                      Copy Link
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                     <div className="p-6 bg-black border border-white/5 rounded-2xl text-center"><p className="text-3xl font-black italic">{store.settings.referral?.recruits || 0}</p><p className="text-[9px] uppercase text-gray-500 font-bold">Operators Recruited</p></div>
-                     <div className="p-6 bg-[#00FFC2]/5 border border-[#00FFC2]/20 rounded-2xl text-center"><p className="text-3xl font-black italic text-[#00FFC2]">${store.settings.referral?.totalEarned || 0}</p><p className="text-[9px] uppercase text-[#00FFC2]/50 font-bold">Bounty Earned</p></div>
-                  </div>
-                </div>
-              )}
-
-              {activeSubTab === 'Sharing' && (
-                <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-300">
-                  <ToggleRow label="Public Operator Profile" active={store.settings.privacy?.publicProfile || false} onToggle={() => store.updateSettings('privacy', {publicProfile: !store.settings.privacy.publicProfile})} />
-                  <ToggleRow label="Ghost Protocol (Hide Identity)" active={store.settings.privacy?.ghostProtocol || false} onToggle={() => store.updateSettings('privacy', {ghostProtocol: !store.settings.privacy.ghostProtocol})} isDanger />
-                </div>
-              )}
-
-              <div className="pt-10 mt-10 border-t border-white/10">
-                <button onClick={handleSaveSettings} className="w-full py-5 bg-[#00FFC2] text-black font-black uppercase tracking-[0.3em] italic rounded-2xl hover:scale-[1.02] transition-all shadow-[0_0_40px_rgba(0,255,194,0.15)]">
-                  Save_Global_Config
+              <div className="mt-auto pt-6 border-t border-white/5">
+                <button onClick={handleSaveSettings} className="w-full py-4 bg-white/10 text-white font-black text-[10px] uppercase tracking-widest rounded-xl hover:bg-[#00FFC2] hover:text-black transition-all">
+                  Save All
                 </button>
               </div>
+            </div>
 
+            {/* LE CONTENU DES PARAMETRES */}
+            <div className="flex-1 overflow-y-auto p-6 md:p-10">
+              <div className="max-w-2xl mx-auto">
+                {activeSubTab === 'privacy' && <PrivacySection />}
+                {activeSubTab === 'av' && <AVSection />}
+                {activeSubTab === 'data' && <DataSection />}
+              </div>
             </div>
           </div>
         )}
 
+        {/* ================================================================= */}
+        {/* LE RESTE : LIVE ROOM ET WAIVER MODAL                              */}
+        {/* ================================================================= */}
         {isLive && activeMission && liveToken && (
           <div className="fixed inset-0 z-[100] bg-black animate-in fade-in duration-500">
-            <LiveKitRoom 
-              video={true} 
-              audio={true} 
-              options={{
-                videoCaptureDefaults: {
-                  resolution: { width: 1920, height: 1080, frameRate: 30 }
-                }
-              }}
-              token={liveToken} 
-              serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL} 
-              connect={true} 
-              className="h-full w-full relative"
-            >
-              <div className="absolute inset-0 z-0 bg-black">
-                 <VideoConference />
-              </div>
-
+            <LiveKitRoom video={true} audio={true} token={liveToken} serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL} connect={true} className="h-full w-full relative">
+              <div className="absolute inset-0 z-0 bg-black"><VideoConference /></div>
               <div className="absolute inset-0 p-6 md:p-10 flex flex-col justify-between pointer-events-none z-10">
-                <div className="flex justify-between items-start">
-                   <div className="bg-red-600 px-4 py-1.5 text-[10px] font-black uppercase italic shadow-lg animate-pulse flex items-center gap-2">
-                     <div className="w-2 h-2 bg-white rounded-full"></div> Live_Ops
-                   </div>
-                   <div className="text-right">
-                      <div className="text-4xl md:text-6xl font-black italic text-[#00FFC2]">${activeMission.bounty}</div>
-                      <div className="text-[10px] text-white/50 uppercase tracking-widest mt-1">Objectif Actif</div>
-                   </div>
-                </div>
                 <button onClick={abortMission} className="pointer-events-auto self-center px-10 py-3 bg-black/60 border border-red-500 text-red-500 font-black uppercase text-[10px] rounded-full tracking-widest backdrop-blur-md hover:bg-red-600 hover:text-white transition-colors">
                   Abort_Mission
                 </button>
@@ -575,34 +524,15 @@ export default function PulseOperatorHub() {
 
         {showWaiver && (
            <div className="fixed inset-0 z-[200] bg-black/95 backdrop-blur-xl flex items-end md:items-center justify-center p-0 md:p-6 animate-in slide-in-from-bottom duration-300">
-              <div className="w-full max-w-2xl bg-[#0a0a0a] border-t md:border border-white/10 rounded-t-3xl md:rounded-3xl p-6 md:p-10 space-y-6 max-h-[90vh] flex flex-col">
+              <div className="w-full max-w-2xl bg-[#0a0a0a] border-t md:border border-white/10 rounded-t-3xl md:rounded-3xl p-6 md:p-10 space-y-6">
                 <div className="flex justify-between items-start flex-shrink-0">
-                   <div className="flex items-center gap-3 text-red-500">
-                      <AlertTriangle size={24} />
-                      <h2 className="text-xl md:text-2xl font-black uppercase italic">Safety_Contract_v4.0</h2>
-                   </div>
+                   <div className="flex items-center gap-3 text-red-500"><AlertTriangle size={24} /><h2 className="text-xl md:text-2xl font-black uppercase italic">Safety_Contract_v4.0</h2></div>
                    <button onClick={() => setShowWaiver(false)} className="p-2 text-gray-500 hover:text-white"><X size={20}/></button>
                 </div>
-                
-                <div className="overflow-y-auto text-[10px] text-gray-400 space-y-4 pr-4 border-b border-white/5 pb-4 scrollbar-hide italic leading-relaxed">
-                  <p>1. L'Opérateur accepte les risques de blessures graves ou décès.</p>
-                  <p>2. En signant ci-dessous, vous déchargez formellement NORD.VANTIX de toute responsabilité légale, médicale ou financière.</p>
-                  <p>3. Signature obligatoire pour débloquer le LiveKit_Uplink et valider le paiement.</p>
+                <div className="bg-white rounded-xl overflow-hidden h-40 md:h-48 cursor-crosshair border-4 border-[#00FFC2]/20 shadow-[0_0_30px_rgba(0,255,194,0.1)]">
+                  <SignatureCanvas ref={sigCanvas} penColor='black' backgroundColor='white' canvasProps={{className: 'w-full h-full'}} />
                 </div>
-
-                <div className="space-y-2 flex-shrink-0">
-                  <div className="flex justify-between items-center">
-                    <label className="text-[9px] font-black uppercase text-[#00FFC2] tracking-widest">Signature_Canvas</label>
-                    <button onClick={() => sigCanvas.current.clear()} className="text-[8px] text-red-500 font-black uppercase underline">Reset</button>
-                  </div>
-                  <div className="bg-white rounded-xl overflow-hidden h-40 md:h-48 cursor-crosshair border-4 border-[#00FFC2]/20 shadow-[0_0_30px_rgba(0,255,194,0.1)]">
-                    <SignatureCanvas ref={sigCanvas} penColor='black' backgroundColor='white' canvasProps={{className: 'w-full h-full'}} />
-                  </div>
-                </div>
-
-                <button onClick={signLegalWaiver} className="w-full py-5 bg-[#00FFC2] text-black font-black uppercase tracking-[0.2em] rounded-xl hover:scale-[1.02] transition-all">
-                  Sign_&_Authorize
-                </button>
+                <button onClick={signLegalWaiver} className="w-full py-5 bg-[#00FFC2] text-black font-black uppercase tracking-[0.2em] rounded-xl hover:scale-[1.02] transition-all">Sign_&_Authorize</button>
               </div>
            </div>
         )}
@@ -611,6 +541,7 @@ export default function PulseOperatorHub() {
   );
 }
 
+// Composants helpers additionnels
 function StatusTag({ label, ok }: { label: string, ok: boolean }) {
   return (
     <div className={`px-2 py-0.5 border text-[8px] font-black uppercase tracking-widest rounded-sm ${ok ? 'border-[#00FFC2] text-[#00FFC2]' : 'border-red-500/20 text-red-500/40'}`}>
@@ -628,18 +559,6 @@ function InputBox({ label, value, onChange, type = "text", placeholder = "" }: {
       ) : (
         <input placeholder={placeholder} type={type} value={value} onChange={(e) => onChange(e.target.value)} className="w-full bg-black border border-white/10 p-4 rounded-xl text-xs text-white outline-none focus:border-[#00FFC2] transition-colors placeholder-gray-700" />
       )}
-    </div>
-  );
-}
-
-function ToggleRow({ label, active, onToggle, isDanger = false }: { label: string, active: boolean, onToggle: () => void, isDanger?: boolean }) {
-  const activeColor = isDanger ? 'bg-red-500' : 'bg-[#00FFC2]';
-  return (
-    <div className="flex justify-between items-center p-4 md:p-5 bg-zinc-900/40 border border-white/5 rounded-2xl">
-      <span className="text-[10px] font-black uppercase tracking-widest text-gray-300">{label}</span>
-      <button onClick={onToggle} className={`w-14 h-7 rounded-full transition-all relative p-1 ${active ? activeColor : 'bg-black border border-white/10'}`}>
-        <div className={`w-5 h-5 bg-white rounded-full shadow-md transition-transform ${active ? 'translate-x-7' : 'translate-x-0'}`} />
-      </button>
     </div>
   );
 }
