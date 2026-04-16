@@ -14,7 +14,10 @@ import {
 import { useDeployStore } from "../../store/useDeployStore";
 import '@livekit/components-styles';
 
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL || "", process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "");
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || "", 
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+);
 
 // ─── COMPOSANTS UI DE BASE ──────────────────────────────────────────────────
 
@@ -219,7 +222,6 @@ export default function PulseOperatorHub() {
   const [missionDesc, setMissionDesc] = useState("");
   const [minViewers, setMinViewers] = useState("");
   const [requestedBounty, setRequestedBounty] = useState("");
-  const [riskLevel, setRiskLevel] = useState<'LOW' | 'MID' | 'EXTREME'>('LOW');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [liveToken, setLiveToken] = useState("");
@@ -271,34 +273,61 @@ export default function PulseOperatorHub() {
     }]);
     setIsSubmitting(false);
     if (error) showToast(error.message, "error");
-    else { showToast("Contrat transmis", "success"); fetchMissions(user.id); }
+    else { 
+      showToast("Contrat transmis", "success"); 
+      setMissionDesc(""); setMinViewers(""); setRequestedBounty("");
+      fetchMissions(user.id); 
+    }
   };
 
   const signLegalWaiver = async () => {
     if (!sigCanvas.current || sigCanvas.current.isEmpty()) return showToast("Signature requise", "error");
+    const signatureData = sigCanvas.current.getTrimmedCanvas().toDataURL('image/png');
+    
+    // On archive la signature pour de vrai
+    await supabase.from('operator_waivers').insert([{ user_id: user.id, signature_data: signatureData }]);
+    
     store.setModuleStatus('safetyValid', true);
     setShowWaiver(false);
-    showToast("Contrat signé");
+    showToast("Contrat signé et archivé");
   };
 
   const activeMission = missions.find(m => m.status === 'approved' || m.status === 'active');
 
-  const handleDeploy = async (instant = false) => {
+  const handleDeploy = async () => {
     if (!store.safetyValid || !activeMission) return showToast("Sécurité ou Mission non valide", "error");
     setDeploying(true);
     try {
-      const resp = await fetch(`/api/get-participant-token?room=room-${user.id}&username=OPERATOR`);
+      const resp = await fetch(`/api/get-participant-token?room=room-${user.id}&username=OPERATOR-${user.id.substring(0,5)}`);
       const data = await resp.json();
+      if (!data.token) throw new Error("Accès refusé");
+      
       setLiveToken(data.token);
+      await supabase.from('missions').update({ status: 'active' }).eq('id', activeMission.id);
+      
       let timer = 3; setCountdown(timer);
       const interval = setInterval(() => {
         timer--; setCountdown(timer);
-        if (timer === 0) { clearInterval(interval); setIsLive(true); setDeploying(false); }
+        if (timer === 0) { 
+          clearInterval(interval); 
+          setIsLive(true); 
+          setDeploying(false); 
+        }
       }, 1000);
-    } catch (e) { setDeploying(false); showToast("Erreur Uplink", "error"); }
+    } catch (e) { 
+      setDeploying(false); 
+      showToast("Erreur Uplink Réseau", "error"); 
+    }
   };
 
-  const abortMission = () => { setIsLive(false); setLiveToken(""); };
+  const abortMission = async () => { 
+    setIsLive(false); 
+    setLiveToken(""); 
+    if (activeMission) {
+      await supabase.from('missions').update({ status: 'completed' }).eq('id', activeMission.id);
+      showToast("Mission terminée. Signal coupé.", "error");
+    }
+  };
 
   if (!user) return null;
 
@@ -314,65 +343,90 @@ export default function PulseOperatorHub() {
       )}
 
       {!isLive && (
-        <nav className="fixed bottom-0 w-full md:relative md:w-64 bg-black/90 border-t md:border-t-0 md:border-r border-white/5 flex md:flex-col p-2 md:p-6 gap-2 z-40 backdrop-blur-lg">
+        <nav className="fixed bottom-0 w-full md:relative md:w-20 lg:w-64 bg-black/90 border-t md:border-t-0 md:border-r border-white/5 flex md:flex-col p-2 md:p-6 gap-2 z-40 backdrop-blur-lg transition-all">
+          <div className="hidden md:flex items-center gap-3 mb-10 px-2 text-[#00FFC2]">
+            <Activity size={20} className="animate-pulse" />
+            <span className="hidden lg:inline text-xs font-black tracking-tighter italic">PULSE_OS_v4</span>
+          </div>
           {['hub', 'wallet', 'settings'].map((tab) => (
             <button key={tab} onClick={() => setActiveTab(tab as any)} 
-              className={`flex-1 md:flex-none flex items-center justify-center md:justify-start gap-3 p-4 text-[10px] font-black uppercase tracking-widest transition-all ${
+              className={`flex-1 md:flex-none flex items-center justify-center md:justify-start gap-4 p-4 rounded-xl transition-all ${
                 activeTab === tab ? 'bg-[#00FFC2]/10 text-[#00FFC2] border border-[#00FFC2]/20 shadow-[0_0_20px_rgba(0,255,194,0.1)]' : 'text-gray-500 hover:text-gray-300'
               }`}>
-              {tab === 'hub' ? <LayoutDashboard size={18}/> : tab === 'wallet' ? <Wallet size={18}/> : <Settings size={18}/>}
-              <span className="hidden md:inline">{tab}</span>
+              {tab === 'hub' ? <LayoutDashboard size={20}/> : tab === 'wallet' ? <Wallet size={20}/> : <Settings size={20}/>}
+              <span className="hidden lg:inline text-[10px] font-black uppercase tracking-widest">{tab}</span>
             </button>
           ))}
         </nav>
       )}
 
-      <section className="flex-1 relative flex flex-col overflow-hidden pb-20 md:pb-0">
+      <section className="flex-1 relative flex flex-col overflow-hidden pb-20 md:pb-0 bg-[radial-gradient(circle_at_50%_50%,_#111_0%,_#050505_100%)]">
         
         {!isLive && activeTab === 'hub' && (
-          <div className="h-full overflow-y-auto p-4 md:p-10 max-w-7xl mx-auto w-full grid grid-cols-12 gap-4 md:gap-6 scrollbar-hide">
-            <div className="col-span-12 border-b border-[#00FFC2]/20 pb-6 flex justify-between items-end">
-              <div>
-                <h2 className="text-3xl md:text-5xl font-black uppercase italic tracking-tighter">Mission_Hub</h2>
-                <div className="flex flex-wrap gap-2 mt-3">
-                  <StatusTag label="CONTRACT" ok={!!activeMission} />
-                  <StatusTag label="SAFE" ok={store.safetyValid} />
-                </div>
+          <div className="h-full overflow-y-auto p-6 lg:p-12 max-w-[1400px] mx-auto w-full grid grid-cols-12 gap-6 scrollbar-hide animate-in fade-in duration-500">
+            <div className="col-span-12 border-b border-white/10 pb-6 mb-4">
+              <h2 className="text-4xl lg:text-6xl font-black uppercase italic tracking-tighter">Mission_Control</h2>
+              <div className="flex flex-wrap gap-3 mt-4">
+                <StatusTag label="UPLINK" ok={!!liveToken || isLive} />
+                <StatusTag label="CONTRACT" ok={!!activeMission} />
+                <StatusTag label="AUTH_SIGN" ok={store.safetyValid} />
               </div>
             </div>
 
-            <div className="col-span-12 lg:col-span-7 space-y-4 md:space-y-6">
-              <div className="bg-zinc-900/10 border border-white/5 p-6 md:p-8 rounded-2xl space-y-5">
-                <InputBox label="Tactical Objective" type="textarea" value={missionDesc} onChange={setMissionDesc} placeholder="Objectif..." />
-                <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-12 lg:col-span-7 space-y-6">
+              <div className="bg-white/[0.02] border border-white/5 p-8 rounded-3xl space-y-6 backdrop-blur-sm">
+                <InputBox label="Tactical Objective" type="textarea" value={missionDesc} onChange={setMissionDesc} placeholder="Décrivez l'opération en cours..." />
+                <div className="grid grid-cols-2 gap-6">
                   <InputBox label="Min Viewers" type="number" value={minViewers} onChange={setMinViewers} />
-                  <InputBox label="Bounty ($)" type="number" value={requestedBounty} onChange={setRequestedBounty} />
+                  <InputBox label="Requested Bounty ($)" type="number" value={requestedBounty} onChange={setRequestedBounty} />
                 </div>
-                <button onClick={submitMissionProposal} className="w-full py-5 bg-white text-black font-black uppercase text-xs rounded-xl">Transmit_Proposal</button>
+                <button onClick={submitMissionProposal} disabled={isSubmitting} className="w-full py-5 bg-white text-black font-black uppercase text-[10px] tracking-widest rounded-2xl hover:scale-[1.02] transition-all disabled:opacity-50">
+                  {isSubmitting ? <Loader2 className="animate-spin mx-auto" /> : "Transmit_Proposal_to_Command"}
+                </button>
               </div>
 
-              <div className={`p-6 md:p-8 rounded-2xl border ${store.safetyValid ? 'border-[#00FFC2]/30 bg-[#00FFC2]/5' : 'border-red-500/20 bg-red-500/5'}`}>
+              <div className={`p-8 rounded-3xl border transition-all ${store.safetyValid ? 'border-[#00FFC2]/30 bg-[#00FFC2]/5' : 'border-red-500/20 bg-red-500/5'}`}>
                 <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-3">
-                    <Shield size={20} className={store.safetyValid ? "text-[#00FFC2]" : "text-red-500"} />
-                    <span className="text-[10px] font-black uppercase tracking-widest">Safety_Waiver</span>
+                  <div className="flex items-center gap-4">
+                    <div className={`p-3 rounded-xl ${store.safetyValid ? 'bg-[#00FFC2]/20 text-[#00FFC2]' : 'bg-red-500/20 text-red-500'}`}>
+                      <Shield size={24} />
+                    </div>
+                    <div>
+                      <div className="text-xs font-black uppercase tracking-widest">Legal_Safety_Waiver</div>
+                      <div className="text-[9px] text-gray-500 uppercase mt-1">{store.safetyValid ? 'Signature_Stable // Link_Authorized' : 'Action_Required // Signature_Missing'}</div>
+                    </div>
                   </div>
-                  {!store.safetyValid && <button onClick={() => setShowWaiver(true)} className="px-6 py-2.5 bg-red-600 text-white text-[10px] font-black uppercase rounded-lg">Sign</button>}
+                  {!store.safetyValid && <button onClick={() => setShowWaiver(true)} className="px-8 py-3 bg-red-600 text-white text-[10px] font-black uppercase rounded-xl hover:bg-red-500 transition-all shadow-lg shadow-red-600/20">Sign_Contract</button>}
                 </div>
               </div>
             </div>
 
-            <div className="col-span-12 lg:col-span-5">
-              <button onClick={() => handleDeploy()} disabled={!store.safetyValid || !activeMission || deploying} className="w-full h-48 bg-[#00FFC2] text-black rounded-2xl flex flex-col items-center justify-center gap-2">
-                {deploying ? <Loader2 className="animate-spin" /> : <><Zap size={32} /><span className="text-xl font-black italic">DEPLOY_LIVE</span></>}
+            <div className="col-span-12 lg:col-span-5 h-full">
+              <button onClick={handleDeploy} disabled={!store.safetyValid || !activeMission || deploying} 
+                className={`w-full h-full min-h-[300px] rounded-3xl flex flex-col items-center justify-center gap-4 transition-all group relative overflow-hidden ${
+                  (!store.safetyValid || !activeMission) ? 'bg-white/5 text-gray-600 grayscale' : 'bg-[#00FFC2] text-black shadow-[0_0_50px_rgba(0,255,194,0.2)] hover:scale-[1.01]'
+                }`}>
+                {deploying ? (
+                  <div className="text-center animate-pulse">
+                    <div className="text-5xl font-black italic mb-2">T-MINUS</div>
+                    <div className="text-8xl font-black">{countdown}</div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
+                    <Zap size={64} className="relative z-10" />
+                    <span className="text-3xl font-black italic tracking-tighter relative z-10">DEPLOY_LIVE</span>
+                    {activeMission && <div className="px-4 py-1.5 bg-black/10 rounded-full text-[10px] font-black uppercase relative z-10">Opération: ${activeMission.bounty} Garantie</div>}
+                  </>
+                )}
               </button>
             </div>
           </div>
         )}
 
         {!isLive && activeTab === 'settings' && (
-          <div className="flex h-full w-full overflow-hidden bg-black/40">
-            <div className="w-20 lg:w-64 border-r border-white/5 bg-black/20 flex flex-col p-4 gap-1 overflow-y-auto">
+          <div className="flex h-full w-full overflow-hidden animate-in slide-in-from-bottom-4 duration-500">
+            <div className="w-20 lg:w-64 border-r border-white/5 bg-black/20 flex flex-col p-4 gap-1 overflow-y-auto scrollbar-hide">
               {SETTINGS_NAV.map((item) => (
                 <button key={item.id} onClick={() => setActiveSubTab(item.id)}
                   className={`flex items-center gap-4 px-4 py-4 rounded-xl transition-all ${activeSubTab === item.id ? 'bg-[#00FFC2]/10 border border-[#00FFC2]/20' : 'hover:bg-white/5'}`}>
@@ -381,14 +435,15 @@ export default function PulseOperatorHub() {
                 </button>
               ))}
               <div className="mt-auto p-4 border-t border-white/5 hidden lg:block">
-                <button onClick={() => showToast("Sync Complete")} className="w-full py-3 bg-[#00FFC2] text-black text-[10px] font-black uppercase rounded-lg flex items-center justify-center gap-2">
+                <button onClick={() => showToast("Configuration Synchronisée")} className="w-full py-3 bg-[#00FFC2] text-black text-[10px] font-black uppercase rounded-lg flex items-center justify-center gap-2 hover:bg-white transition-colors">
                     <RefreshCw size={12}/> Sync_Cloud
                 </button>
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-8 lg:p-16">
+            <div className="flex-1 overflow-y-auto p-8 lg:p-16 scrollbar-hide">
               <div className="max-w-2xl mx-auto">
+                <h3 className="text-2xl font-black uppercase italic mb-8 border-b border-white/10 pb-4 text-[#00FFC2]">Module_{activeSubTab.toUpperCase()}</h3>
                 {activeSubTab === 'profile' && <ProfileModule />}
                 {activeSubTab === 'av' && <AVModule />}
                 {activeSubTab === 'connection' && <ConnectionModule />}
@@ -410,19 +465,31 @@ export default function PulseOperatorHub() {
           <div className="fixed inset-0 z-[100] bg-black">
             <LiveKitRoom video={true} audio={true} token={liveToken} serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL} connect={true} className="h-full">
               <VideoConference />
-              <button onClick={abortMission} className="absolute top-10 left-1/2 -translate-x-1/2 px-10 py-3 bg-red-600 text-white font-black uppercase text-[10px] rounded-full z-20">Abort_Mission</button>
+              <RoomAudioRenderer />
+              <div className="absolute top-10 inset-x-0 flex flex-col items-center pointer-events-none z-20">
+                <div className="px-10 py-3 bg-red-600/20 border border-red-500 backdrop-blur-md text-red-500 font-black uppercase text-[10px] tracking-[0.3em] rounded-full animate-pulse mb-4">Live_Operational_Sector</div>
+                <button onClick={abortMission} className="pointer-events-auto px-10 py-3 bg-black/60 border border-red-500 text-red-500 font-black uppercase text-[10px] rounded-full tracking-widest backdrop-blur-md hover:bg-red-600 hover:text-white transition-all shadow-2xl">Abort_Mission_Signal</button>
+              </div>
             </LiveKitRoom>
           </div>
         )}
 
         {showWaiver && (
-          <div className="fixed inset-0 z-[200] bg-black/95 flex items-center justify-center p-6">
-            <div className="w-full max-w-2xl bg-[#0a0a0a] border border-white/10 rounded-3xl p-10 space-y-6">
-              <div className="text-red-500 font-black uppercase italic text-2xl">Safety_Waiver</div>
-              <div className="bg-white rounded-xl h-48">
+          <div className="fixed inset-0 z-[200] bg-black/95 flex items-center justify-center p-6 backdrop-blur-xl">
+            <div className="w-full max-w-2xl bg-[#0a0a0a] border border-white/10 rounded-[2.5rem] p-12 space-y-8 shadow-2xl">
+              <div className="flex items-center gap-4 text-red-500 font-black uppercase italic text-3xl">
+                <AlertTriangle size={32} /> Safety_Waiver_v4.0
+              </div>
+              <p className="text-gray-500 text-[10px] leading-relaxed uppercase">
+                En signant ce contrat, l'Opérateur accepte l'exposition totale de ses données biométriques et décharge NORD.VANTIX de toute responsabilité en cas de perte de signal ou d'intégrité physique.
+              </p>
+              <div className="bg-white rounded-2xl h-64 overflow-hidden shadow-inner">
                 <SignatureCanvas ref={sigCanvas} penColor='black' canvasProps={{className: 'w-full h-full'}} />
               </div>
-              <button onClick={signLegalWaiver} className="w-full py-5 bg-[#00FFC2] text-black font-black uppercase rounded-xl">Authorize_Link</button>
+              <div className="grid grid-cols-2 gap-4">
+                <button onClick={() => setShowWaiver(false)} className="py-5 bg-white/5 text-gray-500 font-black uppercase text-[10px] rounded-2xl hover:bg-white/10 transition-all">Cancel</button>
+                <button onClick={signLegalWaiver} className="py-5 bg-[#00FFC2] text-black font-black uppercase text-[10px] rounded-2xl hover:scale-[1.02] transition-all shadow-lg shadow-[#00FFC2]/20">Authorize_Neural_Link</button>
+              </div>
             </div>
           </div>
         )}
@@ -433,8 +500,9 @@ export default function PulseOperatorHub() {
 
 function StatusTag({ label, ok }: { label: string, ok: boolean }) {
   return (
-    <div className={`px-2 py-0.5 border text-[8px] font-black uppercase tracking-widest rounded-sm ${ok ? 'border-[#00FFC2] text-[#00FFC2]' : 'border-red-500/20 text-red-500/40'}`}>
-      {label}: {ok ? 'OK' : 'ERR'}
+    <div className={`px-3 py-1 border text-[9px] font-black uppercase tracking-widest rounded-lg flex items-center gap-2 transition-all ${ok ? 'border-[#00FFC2]/50 text-[#00FFC2] bg-[#00FFC2]/5' : 'border-red-500/20 text-red-500/40 bg-red-500/5'}`}>
+      <div className={`w-1.5 h-1.5 rounded-full ${ok ? 'bg-[#00FFC2] animate-pulse' : 'bg-red-500/20'}`} />
+      {label}: {ok ? 'STABLE' : 'ERROR'}
     </div>
   );
 }
@@ -442,11 +510,11 @@ function StatusTag({ label, ok }: { label: string, ok: boolean }) {
 function InputBox({ label, value, onChange, type = "text", placeholder = "" }: { label: string, value: string, onChange: (v: string) => void, type?: string, placeholder?: string }) {
   return (
     <div className="space-y-2">
-      <label className="text-[9px] font-black uppercase text-gray-500 tracking-widest block">{label}</label>
+      <label className="text-[9px] font-black uppercase text-gray-500 tracking-[0.2em] block ml-1">{label}</label>
       {type === "textarea" ? (
-        <textarea placeholder={placeholder} value={value} onChange={(e) => onChange(e.target.value)} className="w-full bg-black border border-white/10 p-4 rounded-xl text-xs text-white outline-none h-24 resize-none" />
+        <textarea placeholder={placeholder} value={value} onChange={(e) => onChange(e.target.value)} className="w-full bg-black border border-white/10 p-5 rounded-2xl text-xs text-white outline-none focus:border-[#00FFC2] transition-colors h-32 resize-none placeholder-gray-800" />
       ) : (
-        <input placeholder={placeholder} type={type} value={value} onChange={(e) => onChange(e.target.value)} className="w-full bg-black border border-white/10 p-4 rounded-xl text-xs text-white outline-none" />
+        <input placeholder={placeholder} type={type} value={value} onChange={(e) => onChange(e.target.value)} className="w-full bg-black border border-white/10 p-5 rounded-2xl text-xs text-white outline-none focus:border-[#00FFC2] transition-colors placeholder-gray-800" />
       )}
     </div>
   );
