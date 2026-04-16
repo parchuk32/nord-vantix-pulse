@@ -28,6 +28,9 @@ function VideoRenderer() {
 export default function WatcherTerminal() {
   const [activePlayers, setActivePlayers] = useState<any[]>([]);
   const [selectedPlayer, setSelectedPlayer] = useState<any>(null);
+  
+  // NOUVEAU : Stockage du vrai token du Watcher
+  const [watcherToken, setWatcherToken] = useState("");
 
   const fetchSessions = async () => {
     const { data } = await supabase
@@ -47,6 +50,33 @@ export default function WatcherTerminal() {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
+  // NOUVEAU : Obtenir un token quand on clique sur un joueur
+  useEffect(() => {
+    if (!selectedPlayer) {
+      setWatcherToken("");
+      return;
+    }
+
+    const connectToStream = async () => {
+      try {
+        // On cible la salle de l'opérateur (basé sur son user_id)
+        const roomId = `room-${selectedPlayer.user_id}`;
+        const viewerId = `WATCHER-${Math.floor(Math.random() * 10000)}`;
+
+        const resp = await fetch(`/api/get-participant-token?room=${roomId}&username=${viewerId}`);
+        const data = await resp.json();
+        
+        if (data.token) {
+          setWatcherToken(data.token);
+        }
+      } catch (e) {
+        console.error("Échec de récupération du token :", e);
+      }
+    };
+
+    connectToStream();
+  }, [selectedPlayer]);
+
   // --- MODE GROS DASHBOARD (LIVE VIEW) ---
   if (selectedPlayer) {
     return (
@@ -59,9 +89,24 @@ export default function WatcherTerminal() {
           </button>
 
           <div className="flex-1 relative bg-[#080808] aspect-video md:aspect-auto">
-             <LiveKitRoom video={true} audio={true} token="TOKEN" serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL} connect={true} className="h-full w-full">
-                <VideoRenderer />
-             </LiveKitRoom>
+             {/* NOUVEAU : On s'assure qu'on a le token avant de lancer LiveKit */}
+             {watcherToken ? (
+               <LiveKitRoom 
+                 video={false} // Le spectateur ne diffuse pas sa vidéo
+                 audio={false} // Le spectateur ne diffuse pas son audio
+                 token={watcherToken} 
+                 serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL} 
+                 connect={true} 
+                 className="h-full w-full"
+               >
+                  <VideoRenderer />
+               </LiveKitRoom>
+             ) : (
+               <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#050505]">
+                 <div className="w-8 h-8 border-2 border-[#00FFC2]/20 border-t-[#00FFC2] rounded-full animate-spin mb-4" />
+                 <div className="text-[8px] text-[#00FFC2] animate-pulse tracking-[0.4em] uppercase font-black">Decrypting_Signal...</div>
+               </div>
+             )}
              
              <div className="absolute top-4 right-4 text-right">
                 <div className="text-2xl md:text-4xl font-black italic text-[#00FFC2]">${selectedPlayer.bounty}</div>
@@ -89,15 +134,15 @@ export default function WatcherTerminal() {
            <div className="p-6 border-b border-white/5">
               <div className="flex items-center gap-2 text-[#00FFC2] font-black uppercase text-[9px] mb-4"><TrendingUp size={14} /> Wagers_Matrix</div>
               <div className="grid grid-cols-2 gap-3">
-                 <button className="py-3 bg-zinc-900 border border-white/5 text-white text-[9px] font-black uppercase">Success</button>
-                 <button className="py-3 bg-zinc-900 border border-white/5 text-white text-[9px] font-black uppercase">Failure</button>
+                 <button className="py-3 bg-zinc-900 border border-white/5 text-white text-[9px] font-black uppercase hover:bg-[#00FFC2] hover:text-black transition-colors">Success</button>
+                 <button className="py-3 bg-zinc-900 border border-white/5 text-white text-[9px] font-black uppercase hover:bg-red-600 hover:text-white transition-colors">Failure</button>
               </div>
            </div>
            
            <div className="p-6 flex-1 min-h-[300px] flex flex-col">
               <div className="flex items-center gap-2 text-gray-600 font-black uppercase text-[9px] mb-4"><MessageSquare size={14} /> Comms_Log</div>
               <div className="flex-1 text-[10px] space-y-3 opacity-80 mb-4">
-                 <div className="text-white/50 italic">{'>'} Waiting for uplink...</div>
+                 <div className="text-white/50 italic">{'>'} Neural link established...</div>
               </div>
               <input type="text" placeholder="TRANSMIT..." className="w-full bg-zinc-900 border border-white/5 p-3 text-[9px] text-white outline-none focus:border-[#00FFC2]" />
            </div>
