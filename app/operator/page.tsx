@@ -35,9 +35,7 @@ export default function PulseOperatorHub() {
   const [riskLevel, setRiskLevel] = useState<'LOW' | 'MID' | 'EXTREME'>('LOW');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // AJOUT : Stockage du vrai token LiveKit
   const [liveToken, setLiveToken] = useState("");
-
   const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
 
   const subTabs = ['General', 'Security', 'Billing', 'Notifications', 'Referral', 'Sharing'];
@@ -175,10 +173,19 @@ export default function PulseOperatorHub() {
     showToast("Contrat légal signé et archivé !");
   };
 
-  const activeMission = missions.find(m => m.status === 'approved');
+  // On inclut les missions "active" pour qu'elles survivent au refresh
+  const activeMission = missions.find(m => m.status === 'approved' || m.status === 'active');
 
-  // MODIFICATION : handleDeploy demande un vrai token à l'API
-  const handleDeploy = async () => {
+  // NOUVEAU : Auto-reconnexion si on rafraîchit la page
+  useEffect(() => {
+    const isLiveMode = localStorage.getItem('pulse_live_mode') === 'true';
+    if (isLiveMode && activeMission?.status === 'active' && store.safetyValid && !isLive && !deploying && !liveToken) {
+      handleDeploy(true); // Reconnexion instantanée sans compte à rebours
+    }
+  }, [activeMission, store.safetyValid, isLive, deploying, liveToken]);
+
+  // handleDeploy demande un vrai token à l'API et met à jour la BDD
+  const handleDeploy = async (instant = false) => {
     if (!store.safetyValid || !activeMission) {
       showToast("Contrat légal non signé ou aucune mission approuvée.", "error");
       return;
@@ -187,7 +194,6 @@ export default function PulseOperatorHub() {
     setDeploying(true);
 
     try {
-      // 1. REQUÊTE RÉELLE : On demande le token à votre API
       const resp = await fetch(`/api/get-participant-token?room=room-${user.id}&username=OPERATOR-${user.id}`);
       const data = await resp.json();
       
@@ -195,10 +201,20 @@ export default function PulseOperatorHub() {
         throw new Error("Connexion LiveKit rejetée par le serveur.");
       }
       
-      // 2. On sauvegarde le vrai token
       setLiveToken(data.token);
+      
+      // On sauvegarde dans le navigateur qu'on est en LIVE
+      localStorage.setItem('pulse_live_mode', 'true');
+      
+      // On prévient la base de données que le live a commencé
+      await supabase.from('missions').update({ status: 'active' }).eq('id', activeMission.id);
 
-      // 3. Lancement du compte à rebours (seulement si le token est validé)
+      if (instant) {
+        setIsLive(true);
+        setDeploying(false);
+        return;
+      }
+
       let timer = 3;
       setCountdown(timer);
       const interval = setInterval(() => {
@@ -214,6 +230,19 @@ export default function PulseOperatorHub() {
     } catch (e: any) {
       setDeploying(false);
       showToast(`Échec Uplink: ${e.message}`, "error");
+    }
+  };
+
+  // NOUVEAU : Fonction pour VRAIMENT couper le live
+  const abortMission = async () => {
+    setIsLive(false);
+    setLiveToken("");
+    localStorage.removeItem('pulse_live_mode');
+    
+    if (activeMission) {
+      // On passe la mission en "completed" pour la retirer de la vue des Watchers
+      await supabase.from('missions').update({ status: 'completed' }).eq('id', activeMission.id);
+      showToast("Mission annulée. Signal terminé.", "error");
     }
   };
 
@@ -337,7 +366,7 @@ export default function PulseOperatorHub() {
                        }`}>
                          <div className="flex justify-between items-start">
                            <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded ${
-                             msg.status === 'approved' ? 'bg-[#00FFC2] text-black' :
+                             msg.status === 'approved' || msg.status === 'active' ? 'bg-[#00FFC2] text-black' :
                              msg.status === 'pending' ? 'bg-yellow-500 text-black' :
                              msg.status === 'rejected' ? 'bg-red-500 text-white' : 'bg-gray-500 text-white'
                            }`}>
@@ -357,17 +386,33 @@ export default function PulseOperatorHub() {
               </div>
 
               <button 
-                onClick={handleDeploy}
+                onClick={() => handleDeploy(false)}
                 disabled={!store.safetyValid || !activeMission || deploying}
                 className={`w-full py-8 rounded-2xl flex flex-col items-center justify-center gap-1 transition-all ${
                   store.safetyValid && activeMission 
                     ? 'bg-[#00FFC2] text-black hover:bg-white hover:scale-[1.02] shadow-[0_0_40px_rgba(0,255,194,0.2)]' 
                     : 'bg-white/5 text-gray-600 cursor-not-allowed border border-white/5'
                 }`}>
-                <span className="font-black text-2xl uppercase italic tracking-widest">
-                  {deploying ? `T-MINUS ${countdown}` : activeMission ? 'Deploy_Live' : 'No_Active_Contract'}
+                <span className="font-black text-2xl uppercase italic tracking-widest flex items-center gap-3">
+                  {deploying ? (
+                    <>
+                      <Loader2 className="animate-spin text-red-500" size={28} />
+                      <span className="text-red-500">T-MINUS {countdown}</span>
+                    </>
+                  ) : activeMission ? (
+                    <>
+                      <Activity className="animate-pulse" size={28} />
+                      Deploy_Live
+                    </>
+                  ) : (
+                    'No_Active_Contract'
+                  )}
                 </span>
-                {activeMission && !deploying && <span className="text-[10px] font-bold uppercase tracking-widest">Opération: ${activeMission.bounty} garantie</span>}
+                {activeMission && !deploying && (
+                  <span className="text-[10px] font-bold uppercase tracking-widest bg-black/20 px-3 py-1 rounded-full mt-2 border border-black/10">
+                    Opération: ${activeMission.bounty} garantie
+                  </span>
+                )}
               </button>
 
             </div>
@@ -491,10 +536,8 @@ export default function PulseOperatorHub() {
           </div>
         )}
 
-        {/* MODIFICATION : On vérifie que isLive, activeMission ET liveToken sont présents */}
         {isLive && activeMission && liveToken && (
           <div className="fixed inset-0 z-[100] bg-black animate-in fade-in duration-500">
-            {/* On injecte les vraies variables dans LiveKitRoom */}
             <LiveKitRoom 
               video={true} 
               audio={true} 
@@ -508,12 +551,9 @@ export default function PulseOperatorHub() {
               connect={true} 
               className="h-full w-full relative"
             >
-              
-              {/* === C'EST ICI QUE ÇA A CHANGÉ === */}
               <div className="absolute inset-0 z-0 bg-black">
                  <VideoConference />
               </div>
-              {/* ================================= */}
 
               <div className="absolute inset-0 p-6 md:p-10 flex flex-col justify-between pointer-events-none z-10">
                 <div className="flex justify-between items-start">
@@ -525,7 +565,7 @@ export default function PulseOperatorHub() {
                       <div className="text-[10px] text-white/50 uppercase tracking-widest mt-1">Objectif Actif</div>
                    </div>
                 </div>
-                <button onClick={() => setIsLive(false)} className="pointer-events-auto self-center px-10 py-3 bg-black/60 border border-red-500 text-red-500 font-black uppercase text-[10px] rounded-full tracking-widest backdrop-blur-md hover:bg-red-600 hover:text-white transition-colors">
+                <button onClick={abortMission} className="pointer-events-auto self-center px-10 py-3 bg-black/60 border border-red-500 text-red-500 font-black uppercase text-[10px] rounded-full tracking-widest backdrop-blur-md hover:bg-red-600 hover:text-white transition-colors">
                   Abort_Mission
                 </button>
               </div>

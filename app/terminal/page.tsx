@@ -1,7 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
-// MODIFICATION : Ajout de RoomAudioRenderer dans les imports
 import { LiveKitRoom, useTracks, VideoTrack, RoomAudioRenderer } from '@livekit/components-react';
 import { Track } from 'livekit-client';
 import { ChevronLeft, TrendingUp, MessageSquare, Radio } from 'lucide-react';
@@ -60,7 +59,6 @@ export default function WatcherTerminal() {
 
     const connectToStream = async () => {
       try {
-        // On cible la salle de l'opérateur (basé sur son user_id)
         const roomId = `room-${selectedPlayer.user_id}`;
         const viewerId = `WATCHER-${Math.floor(Math.random() * 10000)}`;
 
@@ -78,6 +76,38 @@ export default function WatcherTerminal() {
     connectToStream();
   }, [selectedPlayer]);
 
+  // NOUVEAU : Gérer la sélection et l'URL
+  const handleSelectPlayer = (player: any) => {
+    setSelectedPlayer(player);
+    window.history.pushState({}, '', `?target=${player.id}`);
+  };
+
+  // NOUVEAU : Gérer la sortie
+  const handleExit = () => {
+    setSelectedPlayer(null);
+    setWatcherToken("");
+    window.history.pushState({}, '', window.location.pathname);
+  };
+
+  // NOUVEAU : Auto-reconnexion et Éjection
+  useEffect(() => {
+    const targetId = new URLSearchParams(window.location.search).get('target');
+    
+    // Auto-reconnexion
+    if (targetId && activePlayers.length > 0 && !selectedPlayer) {
+      const player = activePlayers.find(p => p.id === targetId);
+      if (player) setSelectedPlayer(player);
+    }
+
+    // Éjection si l'Opérateur Abort
+    if (selectedPlayer && activePlayers.length > 0) {
+      const isStillLive = activePlayers.find(p => p.id === selectedPlayer.id);
+      if (!isStillLive) {
+        handleExit(); // Expulse le watcher
+      }
+    }
+  }, [activePlayers, selectedPlayer]);
+
   // --- MODE GROS DASHBOARD (LIVE VIEW) ---
   if (selectedPlayer) {
     return (
@@ -85,7 +115,7 @@ export default function WatcherTerminal() {
         
         {/* SECTION GAUCHE / HAUT : VIDÉO */}
         <div className="flex-1 flex flex-col border-r border-white/5 relative min-h-[400px] md:min-h-0">
-          <button onClick={() => setSelectedPlayer(null)} className="absolute top-4 left-4 z-50 bg-black/80 px-3 py-2 border border-white/10 text-[#00FFC2] text-[9px] font-black uppercase flex items-center gap-2">
+          <button onClick={handleExit} className="absolute top-4 left-4 z-50 bg-black/80 px-3 py-2 border border-white/10 text-[#00FFC2] text-[9px] font-black uppercase flex items-center gap-2">
             <ChevronLeft size={12} /> Exit_Hub
           </button>
 
@@ -93,15 +123,14 @@ export default function WatcherTerminal() {
              {/* On s'assure qu'on a le token avant de lancer LiveKit */}
              {watcherToken ? (
                <LiveKitRoom 
-                 video={false} // Le spectateur ne diffuse pas sa vidéo
-                 audio={false} // Le spectateur ne diffuse pas son audio
+                 video={false} 
+                 audio={false} 
                  token={watcherToken} 
                  serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL} 
                  connect={true} 
                  className="h-full w-full"
                >
                   <VideoRenderer />
-                  {/* MODIFICATION : Ce composant va capter et jouer le son de l'Opérateur */}
                   <RoomAudioRenderer />
                </LiveKitRoom>
              ) : (
@@ -182,7 +211,7 @@ export default function WatcherTerminal() {
           activePlayers.map((player) => (
             <div 
               key={player.id}
-              onClick={() => setSelectedPlayer(player)}
+              onClick={() => handleSelectPlayer(player)}
               className="group relative border border-white/5 aspect-video bg-zinc-900/50 overflow-hidden hover:border-[#00FFC2]/50 transition-all cursor-pointer"
             >
               <div className="absolute inset-0 p-4 md:p-6 flex flex-col justify-between z-10">
