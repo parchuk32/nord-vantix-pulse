@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-// ─── TYPES ───────────────────────────────────────────────────────────────────
+// ─── TYPES & UNIONS ──────────────────────────────────────────────────────────
 
 export type RiskLevel = 'LOW' | 'MID' | 'EXTREME';
 export type ConnectionMode = 'realtime' | 'optimized' | 'datasaver';
@@ -11,10 +11,10 @@ export type ChatSize = 'small' | 'medium' | 'large';
 export type MessageHistory = 10 | 50 | 100 | 500;
 export type ServerRegion = 'auto' | 'eu-west' | 'us-east' | 'us-west' | 'ap-southeast';
 
-// ─── INTERFACE PRINCIPALE ─────────────────────────────────────────────────────
+// ─── INTERFACE DU STORE ──────────────────────────────────────────────────────
 
 interface DeployState {
-  // --- DEPLOY & LIVEKIT ---
+  // --- ÉTATS DE DÉPLOIEMENT ---
   hardwareReady: boolean;
   networkStable: boolean;
   aiApproved: boolean;
@@ -23,15 +23,14 @@ interface DeployState {
   streamToken: string | null;
   roomName: string | null;
 
-  // --- MISSION DATA ---
+  // --- DONNÉES DE MISSION ---
   logs: string[];
   riskLevel: RiskLevel;
   payout: number;
   signatureData: string | null;
 
-  // --- ALL SETTINGS (12 MODULES) ---
+  // --- LES 12 MODULES DE RÉGLAGES ---
   settings: {
-    // 👤 PROFIL & IDENTITÉ
     profile: {
       username: string;
       displayName: string;
@@ -42,8 +41,6 @@ interface DeployState {
       bannerUrl: string | null;
       language: string;
     };
-
-    // 🎥 AUDIO / VIDÉO
     av: {
       cameraEnabled: boolean;
       micEnabled: boolean;
@@ -51,23 +48,19 @@ interface DeployState {
       selectedCamId: string | null;
       selectedAudioOutputId: string | null;
       micTestActive: boolean;
-      micVolume: number; // 0-100 vu-meter value
-      voiceScrambler: boolean; // Brouilleur de voix
-      dynamicWatermark: boolean; // Filigrane invisible anti-leak
-      antiScreenCapture: boolean; // Bloque les captures d'écran (DRM)
+      micVolume: number;
+      voiceScrambler: boolean;
+      dynamicWatermark: boolean;
+      antiScreenCapture: boolean;
     };
-
-    // 📡 CONNEXION & TEMPS RÉEL
     connection: {
       mode: ConnectionMode;
       showPing: boolean;
       autoReconnect: boolean;
       forceSync: boolean;
       serverRegion: ServerRegion;
-      ping: number | null; // ms, live
+      ping: number | null;
     };
-
-    // 💬 CHAT AVANCÉ
     chat: {
       globalChatEnabled: boolean;
       privateMsgEnabled: boolean;
@@ -76,49 +69,41 @@ interface DeployState {
       showTimestamps: boolean;
       showAvatars: boolean;
       chatSize: ChatSize;
-      chatOpacity: number; // 0-100
+      chatOpacity: number;
       messageHistory: MessageHistory;
       autoTranslate: boolean;
       highlightMentions: boolean;
     };
-
-    // 🔔 NOTIFICATIONS
     notifications: {
       onMessage: boolean;
       onMention: boolean;
       onAgentActivity: boolean;
-      volume: number; // 0-100
+      volume: number;
       pushEnabled: boolean;
       silentMode: boolean;
     };
-
-    // 🎮 INTERFACE / HUD
     hud: {
       theme: Theme;
       accentColor: string;
       hudMode: HudMode;
-      uiScale: number; // 80-130
+      uiScale: number;
       animationsEnabled: boolean;
       glowEffect: boolean;
       blurEffect: boolean;
       crtEffect: boolean;
-      scanlineIntensity: number; // 0-1
+      scanlineIntensity: number;
       crosshairVisible: boolean;
     };
-
-    // ⚡ PERFORMANCE & DATA
     performance: {
       lowPerformanceMode: boolean;
       disableAutoVideo: boolean;
-      fpsLimit: number; // 30 | 60 | 120
+      fpsLimit: number;
       disableAnimations: boolean;
       dataCompression: boolean;
       localCache: boolean;
       autoMemoryClear: boolean;
       backgroundMode: boolean;
     };
-
-    // 🔐 CONFIDENTIALITÉ & SÉCURITÉ
     privacy: {
       publicProfile: boolean;
       showOnlineStatus: boolean;
@@ -129,21 +114,17 @@ interface DeployState {
       mfaEnabled: boolean;
       securityScore: number;
       lastPasswordChange: string;
-      ghostProtocol: boolean; // Masque toute présence réseau
-      hardwareSpoofing: boolean; // Falsifie l'empreinte du navigateur (Canvas/WebGL)
-      ipMasking: boolean; // Routage forcé via relais proxy
-      zeroKnowledgeE2E: boolean; // Chiffrement de bout en bout strict
+      ghostProtocol: boolean;
+      hardwareSpoofing: boolean;
+      ipMasking: boolean;
+      zeroKnowledgeE2E: boolean;
     };
-
-    // 📊 DONNÉES & PERSONNALISATION
     data: {
       cloudBackup: boolean;
       multiDeviceSync: boolean;
-      autoBurnLogs: boolean; // Destruction des logs à la déconnexion
-      panicWipeReady: boolean; // Armement du bouton de destruction
+      autoBurnLogs: boolean;
+      panicWipeReady: boolean;
     };
-
-    // 🧠 AGENTS / GAMEPLAY
     agents: {
       defaultAgent: string;
       autoJoinAgent: boolean;
@@ -151,23 +132,17 @@ interface DeployState {
       showAgentStats: boolean;
       defaultSpectator: boolean;
     };
-
-    // 🚪 COMPTE
     account: {
       email: string;
       plan: string;
       cardLast4: string;
       nextBilling: string;
     };
-
-    // 🔗 APPS & INTÉGRATIONS
     apps: {
       discordLinked: boolean;
       telegramLinked: boolean;
       apiKey: string;
     };
-
-    // 🎁 REFERRAL
     referral: {
       code: string;
       recruits: number;
@@ -194,18 +169,18 @@ interface DeployState {
   setMicVolume: (vol: number) => void;
 }
 
-// ─── VALEURS PAR DÉFAUT ───────────────────────────────────────────────────────
+// ─── CONFIGURATION PAR DÉFAUT ────────────────────────────────────────────────
 
 const DEFAULT_SETTINGS: DeployState['settings'] = {
   profile: {
-    username: 'TRISTAN',
-    displayName: 'Tristan',
-    bio: 'OPERATOR_ELITE',
-    userId: 'NVP-001-TRISTAN',
+    username: 'OPERATOR',
+    displayName: 'Operator_01',
+    bio: 'NORD_VANTIX_ELITE_FORCE',
+    userId: 'NVX-' + Math.random().toString(36).substr(2, 9).toUpperCase(),
     avatarUrl: null,
     avatarType: 'generated',
     bannerUrl: null,
-    language: 'EN',
+    language: 'FR',
   },
   av: {
     cameraEnabled: false,
@@ -214,10 +189,10 @@ const DEFAULT_SETTINGS: DeployState['settings'] = {
     selectedCamId: null,
     selectedAudioOutputId: null,
     micTestActive: false,
-    micVolume: 0,
+    micVolume: 50,
     voiceScrambler: false,
     dynamicWatermark: true,
-    antiScreenCapture: false,
+    antiScreenCapture: true,
   },
   connection: {
     mode: 'realtime',
@@ -231,12 +206,12 @@ const DEFAULT_SETTINGS: DeployState['settings'] = {
     globalChatEnabled: true,
     privateMsgEnabled: true,
     antispam: true,
-    wordFilter: false,
+    wordFilter: true,
     showTimestamps: true,
     showAvatars: true,
     chatSize: 'medium',
     chatOpacity: 90,
-    messageHistory: 50,
+    messageHistory: 100,
     autoTranslate: false,
     highlightMentions: true,
   },
@@ -244,7 +219,7 @@ const DEFAULT_SETTINGS: DeployState['settings'] = {
     onMessage: true,
     onMention: true,
     onAgentActivity: true,
-    volume: 70,
+    volume: 80,
     pushEnabled: true,
     silentMode: false,
   },
@@ -255,9 +230,9 @@ const DEFAULT_SETTINGS: DeployState['settings'] = {
     uiScale: 100,
     animationsEnabled: true,
     glowEffect: true,
-    blurEffect: false,
+    blurEffect: true,
     crtEffect: true,
-    scanlineIntensity: 0.5,
+    scanlineIntensity: 0.3,
     crosshairVisible: false,
   },
   performance: {
@@ -265,102 +240,99 @@ const DEFAULT_SETTINGS: DeployState['settings'] = {
     disableAutoVideo: false,
     fpsLimit: 60,
     disableAnimations: false,
-    dataCompression: false,
+    dataCompression: true,
     localCache: true,
-    autoMemoryClear: false,
+    autoMemoryClear: true,
     backgroundMode: false,
   },
   privacy: {
-    publicProfile: true,
+    publicProfile: false,
     showOnlineStatus: true,
     allowInvites: true,
     allowPrivateMsg: true,
     hideActivity: false,
-    historyVisible: true,
+    historyVisible: false,
     mfaEnabled: true,
-    securityScore: 90,
-    lastPasswordChange: '2026-04-01',
+    securityScore: 85,
+    lastPasswordChange: new Date().toISOString(),
     ghostProtocol: false,
     hardwareSpoofing: true,
-    ipMasking: true,
+    ipMasking: false,
     zeroKnowledgeE2E: true,
   },
   data: {
     cloudBackup: true,
-    multiDeviceSync: false,
-    autoBurnLogs: true,
+    multiDeviceSync: true,
+    autoBurnLogs: false,
     panicWipeReady: false,
   },
   agents: {
-    defaultAgent: 'ALPHA-7',
-    autoJoinAgent: false,
+    defaultAgent: 'GHOST-X',
+    autoJoinAgent: true,
     bountyNotifications: true,
     showAgentStats: true,
     defaultSpectator: false,
   },
   account: {
     email: 'ops@nord-vantix.com',
-    plan: 'ULTRA_OPERATOR',
-    cardLast4: '8842',
-    nextBilling: '2026-05-12',
+    plan: 'ELITE_NODE',
+    cardLast4: '****',
+    nextBilling: '2026-12-31',
   },
   apps: {
-    discordLinked: true,
+    discordLinked: false,
     telegramLinked: false,
-    apiKey: 'px_live_992x8vM4qL',
+    apiKey: 'VTX-' + Math.random().toString(36).substr(2, 16).toUpperCase(),
   },
   referral: {
-    code: 'NORD-VANTIX-001',
-    recruits: 12,
-    totalEarned: 1250,
+    code: 'NVX-REF-01',
+    recruits: 0,
+    totalEarned: 0,
   },
 };
 
-// ─── STORE ────────────────────────────────────────────────────────────────────
+// ─── CRÉATION DU STORE ───────────────────────────────────────────────────────
 
 export const useDeployStore = create<DeployState>()(
   persist(
     (set, get) => ({
-      // Deploy statuts
+      // État initial
       hardwareReady: false,
-      networkStable: false,
-      aiApproved: false,
+      networkStable: true,
+      aiApproved: true,
       safetyValid: false,
       isLive: false,
       streamToken: null,
       roomName: null,
       signatureData: null,
-
-      logs: ['[SYSTEM] Pulse_OS v4.0.2 - Full Enterprise Node Online.'],
+      logs: ['[SYSTEM] Pulse_OS v4.0.2 Initialized.'],
       riskLevel: 'MID',
       payout: 7500,
-
       settings: DEFAULT_SETTINGS,
 
-      // ── ACTIONS ──
-
+      // Actions
       setToken: (token, room) => set({ streamToken: token, roomName: room }),
 
       addLog: (msg) =>
-        set((s) => ({
-          logs: [`[${new Date().toLocaleTimeString()}] ${msg}`, ...s.logs].slice(0, 15),
+        set((state) => ({
+          logs: [`[${new Date().toLocaleTimeString()}] ${msg}`, ...state.logs].slice(0, 20),
         })),
 
-      setModuleStatus: (mod, stat) => set((s) => ({ ...s, [mod]: stat })),
+      setModuleStatus: (mod, stat) => set((state) => ({ ...state, [mod]: stat })),
 
       setSignature: (data) => set({ signatureData: data }),
 
       setRisk: (level) => {
-        const mult: Record<RiskLevel, number> = { LOW: 0.5, MID: 1, EXTREME: 2.5 };
-        set({ riskLevel: level, payout: 7500 * mult[level] });
+        const multipliers: Record<RiskLevel, number> = { LOW: 0.5, MID: 1, EXTREME: 3.5 };
+        set({ riskLevel: level, payout: 7500 * multipliers[level] });
       },
 
       updateSettings: (category, newSettings) =>
-        set((s) => ({
+        set((state) => ({
           settings: {
-            ...s.settings,
+            ...state.settings,
             [category]: {
-              ...s.settings[category],
+              ...state.settings[category],
               ...newSettings,
             },
           },
@@ -368,47 +340,43 @@ export const useDeployStore = create<DeployState>()(
 
       isSystemReady: () => {
         const s = get();
-        return s.aiApproved && s.safetyValid;
+        return s.safetyValid && s.networkStable;
       },
 
       resetSettings: () => set({ settings: DEFAULT_SETTINGS }),
 
       exportData: () => {
         const s = get();
-        const exportObj = {
+        return JSON.stringify({
           exported_at: new Date().toISOString(),
-          username: s.settings.profile.username,
-          settings: s.settings,
-          logs: s.logs,
-          riskLevel: s.riskLevel,
-        };
-        return JSON.stringify(exportObj, null, 2);
+          profile: s.settings.profile.username,
+          config: s.settings,
+        }, null, 2);
       },
 
       clearChatHistory: () => set({ logs: [] }),
 
-      disconnectAllDevices: () =>
-        set({ streamToken: null, roomName: null, isLive: false }),
+      disconnectAllDevices: () => set({ streamToken: null, roomName: null, isLive: false }),
 
       setPing: (ms) =>
-        set((s) => ({
+        set((state) => ({
           settings: {
-            ...s.settings,
-            connection: { ...s.settings.connection, ping: ms },
+            ...state.settings,
+            connection: { ...state.settings.connection, ping: ms },
           },
         })),
 
       setMicVolume: (vol) =>
-        set((s) => ({
+        set((state) => ({
           settings: {
-            ...s.settings,
-            av: { ...s.settings.av, micVolume: vol },
+            ...state.settings,
+            av: { ...state.settings.av, micVolume: vol },
           },
         })),
     }),
     {
-      name: 'nord-vantix-pulse-store',
-      partialize: (state) => ({ settings: state.settings }),
+      name: 'vtx-pulse-storage', // Nom de la clé dans le localStorage
+      partialize: (state) => ({ settings: state.settings, safetyValid: state.safetyValid }), // On ne persiste que les réglages et la validité du contrat
     }
   )
 );
