@@ -36,6 +36,33 @@ export default function PulseOperatorHub() {
   const [requestedBounty, setRequestedBounty] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // --- 1. SYSTÈME DE NETTOYAGE (ANTI-ZOMBIE / SESSION FANTÔME) --- 
+  useEffect(() => {
+    const endSessionOnLeave = async () => {
+      // Si on quitte la page alors qu'un live ou un déploiement était en cours
+      if ((isLive || deploying) && selectedMission) {
+        await supabase.from('missions').update({ status: 'approved' }).eq('id', selectedMission.id);
+      }
+    };
+
+    return () => {
+      endSessionOnLeave(); // Nettoyage lors de la navigation interne
+    };
+  }, [isLive, deploying, selectedMission]);
+
+  // Gestion de la fermeture brusque du navigateur [cite: 353, 357]
+  useEffect(() => {
+    const handleUnload = () => {
+      if ((isLive || deploying) && selectedMission) {
+        const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/missions?id=eq.${selectedMission.id}`;
+        // navigator.sendBeacon est la seule méthode fiable pour envoyer des données à la fermeture de l'onglet
+        navigator.sendBeacon(url, JSON.stringify({ status: 'approved' }));
+      }
+    };
+    window.addEventListener('beforeunload', handleUnload);
+    return () => window.removeEventListener('beforeunload', handleUnload);
+  }, [isLive, deploying, selectedMission]);
+
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -56,38 +83,20 @@ export default function PulseOperatorHub() {
     }
   };
 
-  const submitMissionProposal = async () => {
-    if (!missionDesc || !minViewers || !requestedBounty || !store.safetyValid) return;
-    setIsSubmitting(true);
-    const { error } = await supabase.from('missions').insert([{ 
-        user_id: user.id, objective: missionDesc, min_viewers: parseInt(minViewers), 
-        bounty: parseFloat(requestedBounty), status: 'pending' 
-    }]);
-    if (!error) {
-        setMissionDesc(""); setMinViewers(""); setRequestedBounty("");
-        fetchMissions(user.id);
-        setActiveCenterTab('stats');
-    }
-    setIsSubmitting(false);
-  };
-
-  // --- LOGIQUE DE DÉPLOIEMENT RÉELLE ---
+  // --- 2. LOGIQUE DE DÉPLOIEMENT CORRIGÉE --- [cite: 332, 345]
   const handleDeploy = async () => {
-    if (!selectedMission || selectedMission.status !== 'approved') return;
+    // CORRECTION : On autorise si c'est approved OU active (pour relancer si bloqué) 
+    if (!selectedMission || (selectedMission.status !== 'approved' && selectedMission.status !== 'active')) return;
     
     setDeploying(true);
     try {
-      // 1. Récupération du token LiveKit
       const resp = await fetch(`/api/get-participant-token?room=room-${user.id}&username=OPERATOR-${user.id.substring(0,5)}`);
       const data = await resp.json();
-      
       if (!data.token) throw new Error("Accès refusé");
+      
       setLiveToken(data.token);
-
-      // 2. Mise à jour du statut dans Supabase
       await supabase.from('missions').update({ status: 'active' }).eq('id', selectedMission.id);
       
-      // 3. Compte à rebours immersif
       let timer = 3; setCountdown(timer);
       const interval = setInterval(() => {
         timer--; setCountdown(timer);
@@ -118,10 +127,10 @@ export default function PulseOperatorHub() {
 
   return (
     <div className="h-screen w-full bg-[#020202] font-mono text-white flex flex-col overflow-hidden p-2 gap-2 relative">
-      {/* EFFET CRT */}
+      {/* HUD OVERLAY */}
       <div className="fixed inset-0 pointer-events-none z-50 opacity-[0.03] bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_2px,3px_100%]" />
 
-      {/* VUE LIVE (SI DÉPLOYÉ) */}
+      {/* LIVE VIEW MODE */}
       {isLive && liveToken && (
         <div className="fixed inset-0 z-[100] bg-black animate-in fade-in duration-500">
           <LiveKitRoom video={true} audio={true} token={liveToken} serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL} connect={true} className="h-full">
@@ -135,7 +144,7 @@ export default function PulseOperatorHub() {
         </div>
       )}
 
-      {/* HEADER */}
+      {/* HEADER TABS [cite: 311, 315] */}
       <header className="h-16 w-full border border-white/10 bg-white/[0.02] flex items-center justify-between px-6 backdrop-blur-md">
         <div className="flex items-center gap-8">
           <div className="flex items-center gap-3">
@@ -147,16 +156,15 @@ export default function PulseOperatorHub() {
             <TabButton active={activeCenterTab === 'requests'} onClick={() => setActiveCenterTab('requests')} icon={<FileText size={14} />} label="NEW_REQUEST" />
           </nav>
         </div>
-        <div className="flex items-center gap-4">
-            <div className="w-10 h-10 rounded-full border border-[#00FFC2]/30 overflow-hidden shadow-[0_0_10px_rgba(0,255,194,0.1)]">
-                <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.id}`} alt="pfp" />
-            </div>
+        <div className="w-10 h-10 rounded-full border border-[#00FFC2]/30 overflow-hidden shadow-[0_0_10px_rgba(0,255,194,0.1)]">
+            <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.id}`} alt="pfp" />
         </div>
       </header>
 
+      {/* MAIN COCKPIT GRID [cite: 288, 312] */}
       <div className="flex-1 grid grid-cols-12 gap-2 overflow-hidden">
         
-        {/* COL GAUCHE : MISSIONS */}
+        {/* LEFT: DATABASE [cite: 317] */}
         <aside className="col-span-3 border border-white/10 bg-white/[0.01] flex flex-col overflow-hidden">
             <div className="p-4 border-b border-white/10 bg-white/[0.02] flex items-center gap-2">
                 <Target size={14} className="text-[#00FFC2]" />
@@ -165,11 +173,10 @@ export default function PulseOperatorHub() {
             <div className="flex-1 overflow-y-auto p-2 space-y-4 custom-scrollbar">
                 <MissionCategory label="Active / Approved" items={getMissionsByStatus('approved').concat(getMissionsByStatus('active'))} onSelect={setSelectedMission} activeId={selectedMission?.id} color="#00FFC2" icon={<CheckCircle2 size={10}/>} />
                 <MissionCategory label="Pending_Review" items={getMissionsByStatus('pending')} onSelect={setSelectedMission} activeId={selectedMission?.id} color="#60A5FA" icon={<Clock size={10}/>} />
-                <MissionCategory label="Completed" items={getMissionsByStatus('success').concat(getMissionsByStatus('completed'))} onSelect={setSelectedMission} activeId={selectedMission?.id} color="#A855F7" icon={<Zap size={10}/>} />
             </div>
         </aside>
 
-        {/* COL MILIEU : STATS OU REQUESTS */}
+        {/* MIDDLE: INTERFACE DYNAMIQUE [cite: 313, 316] */}
         <main className="col-span-6 border border-white/10 bg-white/[0.01] flex flex-col overflow-hidden">
             {activeCenterTab === 'requests' ? (
                 <div className="p-8 flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2">
@@ -188,9 +195,15 @@ export default function PulseOperatorHub() {
                                 {store.safetyValid ? "ID_CONFIRMED" : "Sign_Handshake"}
                             </button>
                         </div>
-                        <button onClick={submitMissionProposal} disabled={!store.safetyValid || isSubmitting} className="w-full py-5 bg-white text-black font-black uppercase text-xs tracking-[0.3em] hover:bg-[#00FFC2] disabled:opacity-20 transition-all">
-                            Submit_Request <Send size={14}/>
-                        </button>
+                        <button onClick={async () => {
+                            if (!missionDesc || !minViewers || !requestedBounty || !store.safetyValid) return;
+                            setIsSubmitting(true);
+                            await supabase.from('missions').insert([{ user_id: user.id, objective: missionDesc, min_viewers: parseInt(minViewers), bounty: parseFloat(requestedBounty), status: 'pending' }]);
+                            setMissionDesc(""); setMinViewers(""); setRequestedBounty("");
+                            fetchMissions(user.id);
+                            setActiveCenterTab('stats');
+                            setIsSubmitting(false);
+                        }} disabled={!store.safetyValid || isSubmitting} className="w-full py-5 bg-white text-black font-black uppercase text-xs tracking-[0.3em] hover:bg-[#00FFC2] transition-all">Submit_Request</button>
                     </div>
                 </div>
             ) : (
@@ -206,7 +219,7 @@ export default function PulseOperatorHub() {
             )}
         </main>
 
-        {/* COL DROITE : SELECTED & DEPLOY */}
+        {/* RIGHT: TARGETING & DEPLOY [cite: 314, 318, 347] */}
         <aside className="col-span-3 flex flex-col gap-2">
             <div className="flex-1 border border-white/10 bg-white/[0.02] p-5 flex flex-col gap-4">
                 <div className="flex items-center gap-2 text-gray-500 border-b border-white/5 pb-2">
@@ -217,7 +230,7 @@ export default function PulseOperatorHub() {
                     <div className="space-y-4">
                         <p className="text-[10px] leading-relaxed text-gray-300 font-bold italic bg-white/[0.02] p-2">"{selectedMission.objective}"</p>
                         <div className="grid grid-cols-2 gap-2">
-                            <MiniMetric label="STATUS" value={selectedMission.status} color={selectedMission.status === 'approved' ? '#00FFC2' : '#60A5FA'} />
+                            <MiniMetric label="STATUS" value={selectedMission.status} color={(selectedMission.status === 'approved' || selectedMission.status === 'active') ? '#00FFC2' : '#60A5FA'} />
                             <MiniMetric label="BOUNTY" value={`$${selectedMission.bounty}`} />
                         </div>
                     </div>
@@ -226,9 +239,10 @@ export default function PulseOperatorHub() {
 
             <button 
                 onClick={handleDeploy}
-                disabled={!selectedMission || selectedMission.status !== 'approved' || deploying}
+                // CORRECTION : Actif si approved OU active [cite: 347, 350]
+                disabled={!selectedMission || (selectedMission.status !== 'approved' && selectedMission.status !== 'active') || deploying}
                 className={`h-40 border-2 flex flex-col items-center justify-center gap-3 transition-all relative overflow-hidden group ${
-                    selectedMission?.status === 'approved' 
+                    (selectedMission?.status === 'approved' || selectedMission?.status === 'active') 
                     ? 'border-[#00FFC2] bg-[#00FFC2] text-black shadow-[0_0_30px_rgba(0,255,194,0.2)]' 
                     : 'border-white/5 bg-white/[0.01] text-white/10'
                 }`}
@@ -240,7 +254,7 @@ export default function PulseOperatorHub() {
                     </div>
                 ) : (
                     <>
-                        <Zap size={32} className={selectedMission?.status === 'approved' ? "animate-bounce" : ""} />
+                        <Zap size={32} className={(selectedMission?.status === 'approved' || selectedMission?.status === 'active') ? "animate-bounce" : ""} />
                         <span className="text-2xl font-black italic uppercase tracking-tighter">Deploy_Uplink</span>
                         <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
                     </>
@@ -252,7 +266,7 @@ export default function PulseOperatorHub() {
   );
 }
 
-// COMPOSANTS INTERNES
+// COMPOSANTS HELPERS (Identiques à la version précédente)
 function TabButton({ active, onClick, icon, label }: any) {
     return (
         <button onClick={onClick} className={`flex items-center gap-2 px-6 py-2 rounded-md transition-all ${active ? 'bg-[#00FFC2] text-black font-black' : 'text-gray-500 hover:text-white font-bold'}`}>
@@ -275,7 +289,7 @@ function StatsBox({ label, value, icon }: any) {
 
 function MissionCategory({ label, items, onSelect, activeId, color, icon }: any) {
     return (
-        <div className="space-y-2">
+        <div className="space-y-2 mt-2">
             <h4 className="text-[8px] font-black uppercase text-gray-600 flex items-center gap-2">{icon} {label}</h4>
             <div className="space-y-1">
                 {items.map((m: any) => (
