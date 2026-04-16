@@ -9,19 +9,24 @@ import '@livekit/components-styles';
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL || "", process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "");
 
 function VideoRenderer() {
+  // Syntaxe simplifiée : on cherche n'importe quel flux caméra distant
   const tracks = useTracks([Track.Source.Camera], { onlySubscribed: true });
 
-  console.log("📺 [WATCHER] Tracks détectés:", tracks.length);
-
   if (tracks.length > 0 && tracks[0].publication) {
-    console.log("🎬 [WATCHER] Affichage du flux vidéo active.");
-    return <VideoTrack trackRef={tracks[0]} className="absolute inset-0 w-full h-full object-cover" />;
+    return (
+      <VideoTrack 
+        trackRef={tracks[0]} 
+        className="absolute inset-0 w-full h-full object-cover" 
+      />
+    );
   }
 
   return (
     <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#050505]">
       <div className="w-12 h-12 border-2 border-[#00FFC2]/10 border-t-[#00FFC2] rounded-full animate-spin mb-6" />
-      <div className="text-[10px] text-[#00FFC2] animate-pulse uppercase font-black">Intercepting_Signal...</div>
+      <div className="text-[10px] text-[#00FFC2] animate-pulse tracking-[0.5em] uppercase font-black">
+        Intercepting_Signal...
+      </div>
     </div>
   );
 }
@@ -50,14 +55,15 @@ export default function WatcherTerminal() {
     const connectToStream = async () => {
       try {
         const roomId = `mission_${selectedPlayer.id}`; 
-        console.log(`📡 [WATCHER] Requête de token pour room: ${roomId}`);
-        const resp = await fetch(`/api/get-participant-token?room=${roomId}&username=WATCHER_${Math.floor(Math.random() * 10000)}`);
+        const viewerId = `WATCHER_${Math.floor(Math.random() * 10000)}`;
+
+        const resp = await fetch(`/api/get-participant-token?room=${roomId}&username=${viewerId}`);
         const data = await resp.json();
+        
         if (data.token) {
-          console.log("✅ [WATCHER] Token de réception OK.");
           setWatcherToken(data.token);
         }
-      } catch (e) { console.error("💥 [WATCHER] Échec uplink:", e); }
+      } catch (e) { console.error(e); }
     };
     connectToStream();
   }, [selectedPlayer]);
@@ -87,7 +93,7 @@ export default function WatcherTerminal() {
                   <RoomAudioRenderer />
                 </LiveKitRoom>
              ) : (
-                <div className="absolute inset-0 flex items-center justify-center"><span className="text-[10px] text-gray-600 uppercase tracking-[0.4em]">Establishing_Uplink...</span></div>
+                <div className="absolute inset-0 flex items-center justify-center"><span className="text-[10px] text-gray-600 uppercase tracking-[0.4em]">Decrypting...</span></div>
              )}
              <div className="absolute bottom-0 inset-x-0 p-8 bg-gradient-to-t from-black to-transparent pointer-events-none">
                 <div className="flex justify-between items-end">
@@ -98,7 +104,7 @@ export default function WatcherTerminal() {
           </section>
 
           <aside className="col-span-3 border border-white/10 bg-white/[0.01] p-4 flex flex-col overflow-hidden">
-            <div className="flex items-center gap-2 text-gray-500 border-b border-white/5 pb-2 mb-4"><MessageSquare size={14} /><span className="text-[9px] font-black uppercase tracking-widest">Global_Comms</span></div>
+            <div className="flex items-center gap-2 text-gray-500 border-b border-white/5 pb-2 mb-4"><MessageSquare size={14} /><span className="text-[9px] font-black uppercase tracking-widest">Intercepted_Comms</span></div>
             <div className="flex-1 text-[9px] space-y-4 opacity-70 italic overflow-y-auto pr-2"><p className="text-[#00FFC2]">{'>'} Terminal connection secured.</p><p>{'>'} Signal strength at 99%.</p></div>
           </aside>
         </div>
