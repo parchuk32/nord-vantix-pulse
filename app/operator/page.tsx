@@ -6,10 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 import SignatureCanvas from 'react-signature-canvas';
 import { LiveKitRoom, VideoConference, RoomAudioRenderer } from '@livekit/components-react';
 import { 
-  LayoutDashboard, Settings, Wallet, Zap, Shield, CheckCircle2, 
-  AlertTriangle, X, Activity, Crosshair, Loader2, Camera, Mic, 
-  Volume2, Monitor, Globe, MessageSquare, Bell, Cpu, Lock, Database, 
-  User, CreditCard, Link, Copy, LogOut, RefreshCw
+  Zap, Shield, CheckCircle2, AlertTriangle, Activity, Loader2, RefreshCw 
 } from 'lucide-react';
 import { useDeployStore } from "../../store/useDeployStore";
 import '@livekit/components-styles';
@@ -19,191 +16,6 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 );
 
-// ─── COMPOSANTS UI DE BASE ──────────────────────────────────────────────────
-
-function SettingRow({ label, desc, children, isDanger = false }: { label: string; desc?: string; children: React.ReactNode; isDanger?: boolean }) {
-  return (
-    <div className={`flex flex-col md:flex-row md:items-center justify-between gap-4 py-4 border-b border-white/5 hover:bg-white/[0.01] transition-colors px-2 ${isDanger ? 'bg-red-500/5' : ''}`}>
-      <div className="flex flex-col max-w-[70%]">
-        <span className={`text-xs font-black uppercase tracking-widest ${isDanger ? 'text-red-500' : 'text-gray-200'}`}>{label}</span>
-        {desc && <span className="text-[9px] text-gray-500 uppercase tracking-tight mt-1 leading-relaxed">{desc}</span>}
-      </div>
-      <div className="flex-shrink-0 flex items-center">{children}</div>
-    </div>
-  );
-}
-
-function Toggle({ value, onChange, accent = '#00FFC2' }: { value: boolean; onChange: (v: boolean) => void; accent?: string }) {
-  return (
-    <button onClick={() => onChange(!value)} className={`w-12 h-6 rounded-full transition-all relative border ${value ? 'bg-opacity-20 border-opacity-50' : 'bg-black border-white/20'}`} style={{ backgroundColor: value ? `${accent}33` : '', borderColor: value ? accent : '', boxShadow: value ? `0 0 12px ${accent}44` : 'none' }}>
-      <div className="absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-300" style={{ left: value ? 'calc(100% - 20px)' : '4px', backgroundColor: value ? accent : '#444' }} />
-    </button>
-  );
-}
-
-function Select<T extends string | number>({ value, options, onChange }: { value: T; options: { label: string; value: T }[]; onChange: (v: T) => void; }) {
-  return (
-    <select value={value} onChange={(e) => onChange(e.target.value as T)} className="bg-black border border-white/10 text-[#00FFC2] text-[10px] font-bold uppercase rounded px-3 py-2 outline-none focus:border-[#00FFC2] cursor-pointer">
-      {options.map((o) => <option key={o.value} value={o.value} className="bg-[#0a0f1a]">{o.label}</option>)}
-    </select>
-  );
-}
-
-function Range({ value, min, max, onChange, unit = "" }: { value: number; min: number; max: number; onChange: (v: number) => void; unit?: string }) {
-  return (
-    <div className="flex items-center gap-3 min-w-[150px]">
-      <input type="range" min={min} max={max} value={value} onChange={(e) => onChange(parseInt(e.target.value))} className="flex-1 accent-[#00FFC2] h-1 bg-white/10 rounded-lg appearance-none cursor-pointer" />
-      <span className="text-[10px] font-black text-[#00FFC2] w-8 text-right">{value}{unit}</span>
-    </div>
-  );
-}
-
-// ─── LES 12 MODULES DE PARAMÈTRES ───────────────────────────────────────────
-
-const ProfileModule = () => {
-  const { settings, updateSettings } = useDeployStore();
-  return (
-    <div className="space-y-4 animate-in slide-in-from-right-2">
-      <SettingRow label="Nom d'Opérateur" desc="Identifiant public"><input value={settings.profile.displayName} onChange={e => updateSettings('profile', {displayName: e.target.value})} className="bg-black border border-white/10 p-2 text-xs rounded text-[#00FFC2] outline-none w-48" /></SettingRow>
-      <SettingRow label="Bio Tactique" desc="Description courte"><textarea value={settings.profile.bio} onChange={e => updateSettings('profile', {bio: e.target.value})} className="bg-black border border-white/10 p-2 text-xs rounded text-white outline-none w-48 h-20 resize-none" /></SettingRow>
-    </div>
-  );
-};
-
-const AVModule = () => {
-  const { settings, updateSettings } = useDeployStore();
-  return (
-    <div className="space-y-4">
-      <SettingRow label="Caméra Uplink"><Toggle value={settings.av.cameraEnabled} onChange={v => updateSettings('av', {cameraEnabled: v})} /></SettingRow>
-      <SettingRow label="Microphone"><Toggle value={settings.av.micEnabled} onChange={v => updateSettings('av', {micEnabled: v})} /></SettingRow>
-      <SettingRow label="Voice Scrambler" desc="Pitch shift anti-IA"><Toggle value={settings.av.voiceScrambler} onChange={v => updateSettings('av', {voiceScrambler: v})} accent="#a855f7" /></SettingRow>
-      <SettingRow label="Anti-Screen Capture"><Toggle value={settings.av.antiScreenCapture} onChange={v => updateSettings('av', {antiScreenCapture: v})} /></SettingRow>
-    </div>
-  );
-};
-
-const ConnectionModule = () => {
-  const { settings, updateSettings } = useDeployStore();
-  return (
-    <div className="space-y-4">
-      <SettingRow label="Mode Transmission"><Select value={settings.connection.mode} options={[{label: 'Realtime', value: 'realtime'}, {label: 'Optimized', value: 'optimized'}]} onChange={v => updateSettings('connection', {mode: v as any})} /></SettingRow>
-      <SettingRow label="Auto Reconnect"><Toggle value={settings.connection.autoReconnect} onChange={v => updateSettings('connection', {autoReconnect: v})} /></SettingRow>
-      <SettingRow label="Ping Monitor"><Toggle value={settings.connection.showPing} onChange={v => updateSettings('connection', {showPing: v})} /></SettingRow>
-    </div>
-  );
-};
-
-const HUDModule = () => {
-  const { settings, updateSettings } = useDeployStore();
-  return (
-    <div className="space-y-4">
-      <SettingRow label="Effet CRT"><Toggle value={settings.hud.crtEffect} onChange={v => updateSettings('hud', {crtEffect: v})} /></SettingRow>
-      <SettingRow label="Glow & Bloom"><Toggle value={settings.hud.glowEffect} onChange={v => updateSettings('hud', {glowEffect: v})} /></SettingRow>
-      <SettingRow label="UI Scale"><Range value={settings.hud.uiScale} min={80} max={130} unit="%" onChange={v => updateSettings('hud', {uiScale: v})} /></SettingRow>
-    </div>
-  );
-};
-
-const ChatModule = () => {
-  const { settings, updateSettings } = useDeployStore();
-  return (
-    <div className="space-y-4">
-      <SettingRow label="Global Chat"><Toggle value={settings.chat.globalChatEnabled} onChange={v => updateSettings('chat', {globalChatEnabled: v})} /></SettingRow>
-      <SettingRow label="Anti-Spam"><Toggle value={settings.chat.antispam} onChange={v => updateSettings('chat', {antispam: v})} /></SettingRow>
-      <SettingRow label="Opacité"><Range value={settings.chat.chatOpacity} min={10} max={100} unit="%" onChange={v => updateSettings('chat', {chatOpacity: v})} /></SettingRow>
-    </div>
-  );
-};
-
-const NotificationModule = () => {
-  const { settings, updateSettings } = useDeployStore();
-  return (
-    <div className="space-y-4">
-      <SettingRow label="Alertes Messages"><Toggle value={settings.notifications.onMessage} onChange={v => updateSettings('notifications', {onMessage: v})} /></SettingRow>
-      <SettingRow label="Volume"><Range value={settings.notifications.volume} min={0} max={100} unit="%" onChange={v => updateSettings('notifications', {volume: v})} /></SettingRow>
-      <SettingRow label="Mode Silencieux"><Toggle value={settings.notifications.silentMode} onChange={v => updateSettings('notifications', {silentMode: v})} accent="#FFD600" /></SettingRow>
-    </div>
-  );
-};
-
-const PerformanceModule = () => {
-  const { settings, updateSettings } = useDeployStore();
-  return (
-    <div className="space-y-4">
-      <SettingRow label="Mode Éco"><Toggle value={settings.performance.lowPerformanceMode} onChange={v => updateSettings('performance', {lowPerformanceMode: v})} /></SettingRow>
-      <SettingRow label="FPS Limit"><Select value={settings.performance.fpsLimit} options={[{label: '30 FPS', value: 30}, {label: '60 FPS', value: 60}]} onChange={v => updateSettings('performance', {fpsLimit: v as any})} /></SettingRow>
-    </div>
-  );
-};
-
-const PrivacyModule = () => {
-  const { settings, updateSettings } = useDeployStore();
-  return (
-    <div className="space-y-4">
-      <SettingRow label="Ghost Protocol" desc="Invisibilité réseau"><Toggle value={settings.privacy.ghostProtocol} onChange={v => updateSettings('privacy', {ghostProtocol: v})} accent="#FF4444" /></SettingRow>
-      <SettingRow label="Hardware Spoofing"><Toggle value={settings.privacy.hardwareSpoofing} onChange={v => updateSettings('privacy', {hardwareSpoofing: v})} /></SettingRow>
-      <SettingRow label="IP Masking"><Toggle value={settings.privacy.ipMasking} onChange={v => updateSettings('privacy', {ipMasking: v})} /></SettingRow>
-      <SettingRow label="Chiffrement E2E"><Toggle value={settings.privacy.zeroKnowledgeE2E} onChange={v => updateSettings('privacy', {zeroKnowledgeE2E: v})} /></SettingRow>
-    </div>
-  );
-};
-
-const DataModule = () => {
-  const { settings, updateSettings, resetSettings, clearChatHistory } = useDeployStore();
-  return (
-    <div className="space-y-6">
-      <SettingRow label="Sauvegarde Cloud"><Toggle value={settings.data.cloudBackup} onChange={v => updateSettings('data', {cloudBackup: v})} /></SettingRow>
-      <SettingRow label="Auto-Burn Logs"><Toggle value={settings.data.autoBurnLogs} onChange={v => updateSettings('data', {autoBurnLogs: v})} accent="#FF4444" /></SettingRow>
-      <div className="pt-4 space-y-2">
-        <button onClick={() => confirm("Purge historique ?") && clearChatHistory()} className="w-full py-2 bg-white/5 border border-white/10 text-[10px] font-black uppercase rounded hover:bg-white/10 transition-all">Clear Chat Logs</button>
-        <button onClick={() => confirm("Reset total ?") && resetSettings()} className="w-full py-2 bg-red-600/20 text-red-500 text-[10px] font-black uppercase rounded border border-red-500/50 hover:bg-red-600 hover:text-white transition-all">Reset All Settings</button>
-      </div>
-    </div>
-  );
-};
-
-const AgentModule = () => {
-  const { settings, updateSettings } = useDeployStore();
-  return (
-    <div className="space-y-4">
-      <SettingRow label="Stats Agent"><Toggle value={settings.agents.showAgentStats} onChange={v => updateSettings('agents', {showAgentStats: v})} /></SettingRow>
-      <SettingRow label="Auto-Join Agent"><Toggle value={settings.agents.autoJoinAgent} onChange={v => updateSettings('agents', {autoJoinAgent: v})} /></SettingRow>
-    </div>
-  );
-};
-
-const AccountModule = () => {
-  const { settings } = useDeployStore();
-  return (
-    <div className="space-y-4">
-      <div className="p-4 bg-white/5 border border-white/10 rounded-xl space-y-2">
-        <div className="text-[10px] text-gray-500 uppercase font-black">Account Info</div>
-        <div className="text-xs text-white font-mono">{settings.account.email}</div>
-        <div className="text-[10px] text-[#00FFC2] font-black px-2 py-0.5 bg-[#00FFC2]/10 border border-[#00FFC2]/30 rounded inline-block">{settings.account.plan}</div>
-      </div>
-      <button onClick={() => supabase.auth.signOut()} className="w-full py-4 bg-red-600 text-white font-black uppercase text-xs tracking-widest rounded-xl hover:bg-red-500 transition-all flex items-center justify-center gap-3">
-        <LogOut size={16} /> Disconnect_Node
-      </button>
-    </div>
-  );
-};
-
-const AppModule = () => {
-  const { settings } = useDeployStore();
-  return (
-    <div className="space-y-4">
-      <SettingRow label="Discord Linked">
-        <div className={`px-2 py-1 rounded text-[9px] font-black ${settings.apps.discordLinked ? 'bg-green-500/20 text-green-500 border border-green-500' : 'bg-red-500/20 text-red-500 border border-red-500'}`}>
-          {settings.apps.discordLinked ? 'STABLE_LINK' : 'NO_LINK'}
-        </div>
-      </SettingRow>
-      <SettingRow label="API Key"><div className="text-[10px] font-mono text-gray-600 bg-black p-2 rounded border border-white/5 truncate">{settings.apps.apiKey}</div></SettingRow>
-    </div>
-  );
-};
-
-// ─── LE HUB OPÉRATEUR PRINCIPAL ─────────────────────────────────────────────
-
 export default function PulseOperatorHub() {
   const router = useRouter();
   const store = useDeployStore();
@@ -211,8 +23,6 @@ export default function PulseOperatorHub() {
   
   const [user, setUser] = useState<any>(null);
   const [isLive, setIsLive] = useState(false);
-  const [activeTab, setActiveTab] = useState<'hub' | 'wallet' | 'settings'>('hub');
-  const [activeSubTab, setActiveSubTab] = useState('profile');
   
   const [deploying, setDeploying] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
@@ -226,21 +36,6 @@ export default function PulseOperatorHub() {
 
   const [liveToken, setLiveToken] = useState("");
   const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
-
-  const SETTINGS_NAV = [
-    { id: 'profile', icon: <User size={16} />, label: 'Profil' },
-    { id: 'av', icon: <Camera size={16} />, label: 'Audio / Vidéo' },
-    { id: 'hud', icon: <Monitor size={16} />, label: 'HUD' },
-    { id: 'connection', icon: <Globe size={16} />, label: 'Connexion' },
-    { id: 'chat', icon: <MessageSquare size={16} />, label: 'Chat' },
-    { id: 'notifications', icon: <Bell size={16} />, label: 'Notifs' },
-    { id: 'performance', icon: <Cpu size={16} />, label: 'Perf' },
-    { id: 'privacy', icon: <Shield size={16} />, label: 'Sécurité' },
-    { id: 'data', icon: <Database size={16} />, label: 'Données' },
-    { id: 'agents', icon: <Zap size={16} />, label: 'Agents' },
-    { id: 'account', icon: <CreditCard size={16} />, label: 'Compte' },
-    { id: 'apps', icon: <Link size={16} />, label: 'Apps' },
-  ];
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -283,10 +78,7 @@ export default function PulseOperatorHub() {
   const signLegalWaiver = async () => {
     if (!sigCanvas.current || sigCanvas.current.isEmpty()) return showToast("Signature requise", "error");
     const signatureData = sigCanvas.current.getTrimmedCanvas().toDataURL('image/png');
-    
-    // On archive la signature pour de vrai
     await supabase.from('operator_waivers').insert([{ user_id: user.id, signature_data: signatureData }]);
-    
     store.setModuleStatus('safetyValid', true);
     setShowWaiver(false);
     showToast("Contrat signé et archivé");
@@ -332,9 +124,10 @@ export default function PulseOperatorHub() {
   if (!user) return null;
 
   return (
-    <div className="h-screen w-full flex flex-col md:flex-row overflow-hidden bg-[#050505] font-mono text-white relative">
+    <div className="h-screen w-full flex flex-col overflow-hidden bg-[#050505] font-mono text-white relative">
       {store.settings.hud?.crtEffect && <div className="crt-overlay pointer-events-none z-50 opacity-5" />}
       
+      {/* Toasts de notification */}
       {toast && (
         <div className={`fixed top-4 right-4 z-[300] px-6 py-3 rounded-xl flex items-center gap-3 font-black text-xs uppercase tracking-widest animate-in slide-in-from-top-4 fade-in duration-300 shadow-2xl ${toast.type === 'success' ? 'bg-[#00FFC2]/20 border border-[#00FFC2] text-[#00FFC2]' : 'bg-red-500/20 border border-red-500 text-red-500'}`}>
           {toast.type === 'success' ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
@@ -342,81 +135,81 @@ export default function PulseOperatorHub() {
         </div>
       )}
 
-      {!isLive && (
-        <nav className="fixed bottom-0 w-full md:relative md:w-20 lg:w-64 bg-black/90 border-t md:border-t-0 md:border-r border-white/5 flex md:flex-col p-2 md:p-6 gap-2 z-40 backdrop-blur-lg transition-all">
-          <div className="hidden md:flex items-center gap-3 mb-10 px-2 text-[#00FFC2]">
-            <Activity size={20} className="animate-pulse" />
-            <span className="hidden lg:inline text-xs font-black tracking-tighter italic">PULSE_OS_v4</span>
-          </div>
-          {['hub', 'wallet', 'settings'].map((tab) => (
-            <button key={tab} onClick={() => setActiveTab(tab as any)} 
-              className={`flex-1 md:flex-none flex items-center justify-center md:justify-start gap-4 p-4 rounded-xl transition-all ${
-                activeTab === tab ? 'bg-[#00FFC2]/10 text-[#00FFC2] border border-[#00FFC2]/20 shadow-[0_0_20px_rgba(0,255,194,0.1)]' : 'text-gray-500 hover:text-gray-300'
-              }`}>
-              {tab === 'hub' ? <LayoutDashboard size={20}/> : tab === 'wallet' ? <Wallet size={20}/> : <Settings size={20}/>}
-              <span className="hidden lg:inline text-[10px] font-black uppercase tracking-widest">{tab}</span>
-            </button>
-          ))}
-        </nav>
-      )}
-
-      <section className="flex-1 relative flex flex-col overflow-hidden pb-20 md:pb-0 bg-[radial-gradient(circle_at_50%_50%,_#111_0%,_#050505_100%)]">
+      <section className="flex-1 relative flex flex-col overflow-hidden bg-[radial-gradient(circle_at_50%_50%,_#111_0%,_#050505_100%)]">
         
-        {!isLive && activeTab === 'hub' && (
+        {!isLive && (
           <div className="h-full overflow-y-auto p-6 lg:p-12 max-w-[1400px] mx-auto w-full grid grid-cols-12 gap-6 scrollbar-hide animate-in fade-in duration-500">
-            <div className="col-span-12 border-b border-white/10 pb-6 mb-4">
-              <h2 className="text-4xl lg:text-6xl font-black uppercase italic tracking-tighter">Mission_Control</h2>
-              <div className="flex flex-wrap gap-3 mt-4">
-                <StatusTag label="UPLINK" ok={!!liveToken || isLive} />
-                <StatusTag label="CONTRACT" ok={!!activeMission} />
-                <StatusTag label="AUTH_SIGN" ok={store.safetyValid} />
+            
+            {/* Header de Mission */}
+            <div className="col-span-12 border-b border-white/10 pb-6 mb-4 flex justify-between items-end">
+              <div>
+                <h2 className="text-4xl lg:text-6xl font-black uppercase italic tracking-tighter">Mission_Control</h2>
+                <div className="flex flex-wrap gap-3 mt-4">
+                  <StatusTag label="UPLINK" ok={!!liveToken || isLive} />
+                  <StatusTag label="CONTRACT" ok={!!activeMission} />
+                  <StatusTag label="AUTH_SIGN" ok={store.safetyValid} />
+                </div>
+              </div>
+              <div className="hidden md:flex items-center gap-3 px-4 py-2 bg-white/5 border border-white/10 rounded-full">
+                <Activity size={16} className="text-[#00FFC2] animate-pulse" />
+                <span className="text-[10px] font-black tracking-widest uppercase">Pulse_OS_v4.2 // Operational</span>
               </div>
             </div>
 
+            {/* Formulaire de Mission */}
             <div className="col-span-12 lg:col-span-7 space-y-6">
-              <div className="bg-white/[0.02] border border-white/5 p-8 rounded-3xl space-y-6 backdrop-blur-sm">
-                <InputBox label="Tactical Objective" type="textarea" value={missionDesc} onChange={setMissionDesc} placeholder="Décrivez l'opération en cours..." />
+              <div className="bg-white/[0.02] border border-white/5 p-8 rounded-3xl space-y-6 backdrop-blur-sm shadow-2xl">
+                <InputBox label="Tactical Objective" type="textarea" value={missionDesc} onChange={setMissionDesc} placeholder="Détaillez votre objectif opérationnel ici..." />
                 <div className="grid grid-cols-2 gap-6">
                   <InputBox label="Min Viewers" type="number" value={minViewers} onChange={setMinViewers} />
                   <InputBox label="Requested Bounty ($)" type="number" value={requestedBounty} onChange={setRequestedBounty} />
                 </div>
-                <button onClick={submitMissionProposal} disabled={isSubmitting} className="w-full py-5 bg-white text-black font-black uppercase text-[10px] tracking-widest rounded-2xl hover:scale-[1.02] transition-all disabled:opacity-50">
+                <button onClick={submitMissionProposal} disabled={isSubmitting} className="w-full py-5 bg-white text-black font-black uppercase text-[10px] tracking-widest rounded-2xl hover:scale-[1.01] active:scale-95 transition-all disabled:opacity-50">
                   {isSubmitting ? <Loader2 className="animate-spin mx-auto" /> : "Transmit_Proposal_to_Command"}
                 </button>
               </div>
 
-              <div className={`p-8 rounded-3xl border transition-all ${store.safetyValid ? 'border-[#00FFC2]/30 bg-[#00FFC2]/5' : 'border-red-500/20 bg-red-500/5'}`}>
+              {/* Safety Waiver Section */}
+              <div className={`p-8 rounded-3xl border transition-all duration-500 ${store.safetyValid ? 'border-[#00FFC2]/30 bg-[#00FFC2]/5 shadow-[0_0_30px_rgba(0,255,194,0.05)]' : 'border-red-500/20 bg-red-500/5'}`}>
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-4">
-                    <div className={`p-3 rounded-xl ${store.safetyValid ? 'bg-[#00FFC2]/20 text-[#00FFC2]' : 'bg-red-500/20 text-red-500'}`}>
+                    <div className={`p-3 rounded-xl transition-colors ${store.safetyValid ? 'bg-[#00FFC2]/20 text-[#00FFC2]' : 'bg-red-500/20 text-red-500'}`}>
                       <Shield size={24} />
                     </div>
                     <div>
                       <div className="text-xs font-black uppercase tracking-widest">Legal_Safety_Waiver</div>
-                      <div className="text-[9px] text-gray-500 uppercase mt-1">{store.safetyValid ? 'Signature_Stable // Link_Authorized' : 'Action_Required // Signature_Missing'}</div>
+                      <div className="text-[9px] text-gray-500 uppercase mt-1 leading-none">{store.safetyValid ? 'Neural_Signature: Verified // Uplink: Authorized' : 'Neural_Signature: Missing // Uplink: Locked'}</div>
                     </div>
                   </div>
-                  {!store.safetyValid && <button onClick={() => setShowWaiver(true)} className="px-8 py-3 bg-red-600 text-white text-[10px] font-black uppercase rounded-xl hover:bg-red-500 transition-all shadow-lg shadow-red-600/20">Sign_Contract</button>}
+                  {!store.safetyValid && <button onClick={() => setShowWaiver(true)} className="px-8 py-3 bg-red-600 text-white text-[10px] font-black uppercase rounded-xl hover:bg-red-500 transition-all shadow-lg shadow-red-600/20 active:scale-95">Sign_Waiver</button>}
                 </div>
               </div>
             </div>
 
+            {/* Bouton de Déploiement Géant */}
             <div className="col-span-12 lg:col-span-5 h-full">
               <button onClick={handleDeploy} disabled={!store.safetyValid || !activeMission || deploying} 
-                className={`w-full h-full min-h-[300px] rounded-3xl flex flex-col items-center justify-center gap-4 transition-all group relative overflow-hidden ${
-                  (!store.safetyValid || !activeMission) ? 'bg-white/5 text-gray-600 grayscale' : 'bg-[#00FFC2] text-black shadow-[0_0_50px_rgba(0,255,194,0.2)] hover:scale-[1.01]'
+                className={`w-full h-full min-h-[400px] rounded-[2.5rem] flex flex-col items-center justify-center gap-6 transition-all group relative overflow-hidden border ${
+                  (!store.safetyValid || !activeMission) ? 'bg-white/5 border-white/5 text-gray-700 grayscale cursor-not-allowed' : 'bg-[#00FFC2] border-[#00FFC2] text-black shadow-[0_0_60px_rgba(0,255,194,0.15)] hover:scale-[1.01] active:scale-[0.98]'
                 }`}>
+                
                 {deploying ? (
-                  <div className="text-center animate-pulse">
-                    <div className="text-5xl font-black italic mb-2">T-MINUS</div>
-                    <div className="text-8xl font-black">{countdown}</div>
+                  <div className="text-center animate-in zoom-in duration-300">
+                    <div className="text-4xl font-black italic mb-2 tracking-tighter uppercase">Initializing...</div>
+                    <div className="text-9xl font-black tabular-nums">{countdown}</div>
                   </div>
                 ) : (
                   <>
-                    <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
-                    <Zap size={64} className="relative z-10" />
-                    <span className="text-3xl font-black italic tracking-tighter relative z-10">DEPLOY_LIVE</span>
-                    {activeMission && <div className="px-4 py-1.5 bg-black/10 rounded-full text-[10px] font-black uppercase relative z-10">Opération: ${activeMission.bounty} Garantie</div>}
+                    <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-700 ease-out" />
+                    <Zap size={80} className="relative z-10 drop-shadow-lg group-hover:scale-110 transition-transform" />
+                    <span className="text-4xl font-black italic tracking-tighter relative z-10 uppercase">Deploy_Live_Link</span>
+                    {activeMission ? (
+                      <div className="px-6 py-2 bg-black text-[#00FFC2] rounded-full text-[10px] font-black uppercase relative z-10 border border-[#00FFC2]/30">
+                        Contract_Ready: ${activeMission.bounty}
+                      </div>
+                    ) : (
+                      <div className="text-[10px] font-black uppercase opacity-40">No_Active_Mission_Found</div>
+                    )}
                   </>
                 )}
               </button>
@@ -424,71 +217,36 @@ export default function PulseOperatorHub() {
           </div>
         )}
 
-        {!isLive && activeTab === 'settings' && (
-          <div className="flex h-full w-full overflow-hidden animate-in slide-in-from-bottom-4 duration-500">
-            <div className="w-20 lg:w-64 border-r border-white/5 bg-black/20 flex flex-col p-4 gap-1 overflow-y-auto scrollbar-hide">
-              {SETTINGS_NAV.map((item) => (
-                <button key={item.id} onClick={() => setActiveSubTab(item.id)}
-                  className={`flex items-center gap-4 px-4 py-4 rounded-xl transition-all ${activeSubTab === item.id ? 'bg-[#00FFC2]/10 border border-[#00FFC2]/20' : 'hover:bg-white/5'}`}>
-                  <span className={activeSubTab === item.id ? 'text-[#00FFC2]' : 'text-gray-500'}>{item.icon}</span>
-                  <span className={`hidden lg:inline text-[10px] font-black uppercase tracking-widest ${activeSubTab === item.id ? 'text-[#00FFC2]' : 'text-gray-400'}`}>{item.label}</span>
-                </button>
-              ))}
-              <div className="mt-auto p-4 border-t border-white/5 hidden lg:block">
-                <button onClick={() => showToast("Configuration Synchronisée")} className="w-full py-3 bg-[#00FFC2] text-black text-[10px] font-black uppercase rounded-lg flex items-center justify-center gap-2 hover:bg-white transition-colors">
-                    <RefreshCw size={12}/> Sync_Cloud
-                </button>
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-8 lg:p-16 scrollbar-hide">
-              <div className="max-w-2xl mx-auto">
-                <h3 className="text-2xl font-black uppercase italic mb-8 border-b border-white/10 pb-4 text-[#00FFC2]">Module_{activeSubTab.toUpperCase()}</h3>
-                {activeSubTab === 'profile' && <ProfileModule />}
-                {activeSubTab === 'av' && <AVModule />}
-                {activeSubTab === 'connection' && <ConnectionModule />}
-                {activeSubTab === 'hud' && <HUDModule />}
-                {activeSubTab === 'chat' && <ChatModule />}
-                {activeSubTab === 'notifications' && <NotificationModule />}
-                {activeSubTab === 'performance' && <PerformanceModule />}
-                {activeSubTab === 'privacy' && <PrivacyModule />}
-                {activeSubTab === 'data' && <DataModule />}
-                {activeSubTab === 'agents' && <AgentModule />}
-                {activeSubTab === 'account' && <AccountModule />}
-                {activeSubTab === 'apps' && <AppModule />}
-              </div>
-            </div>
-          </div>
-        )}
-
+        {/* Vue Livekit (Quand on est en live) */}
         {isLive && liveToken && (
           <div className="fixed inset-0 z-[100] bg-black">
             <LiveKitRoom video={true} audio={true} token={liveToken} serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL} connect={true} className="h-full">
               <VideoConference />
               <RoomAudioRenderer />
               <div className="absolute top-10 inset-x-0 flex flex-col items-center pointer-events-none z-20">
-                <div className="px-10 py-3 bg-red-600/20 border border-red-500 backdrop-blur-md text-red-500 font-black uppercase text-[10px] tracking-[0.3em] rounded-full animate-pulse mb-4">Live_Operational_Sector</div>
-                <button onClick={abortMission} className="pointer-events-auto px-10 py-3 bg-black/60 border border-red-500 text-red-500 font-black uppercase text-[10px] rounded-full tracking-widest backdrop-blur-md hover:bg-red-600 hover:text-white transition-all shadow-2xl">Abort_Mission_Signal</button>
+                <div className="px-10 py-3 bg-red-600/20 border border-red-500 backdrop-blur-md text-red-500 font-black uppercase text-[10px] tracking-[0.3em] rounded-full animate-pulse mb-4">Signal_Operational_Sector</div>
+                <button onClick={abortMission} className="pointer-events-auto px-10 py-3 bg-black/80 border border-red-500 text-red-500 font-black uppercase text-[10px] rounded-full tracking-widest backdrop-blur-md hover:bg-red-600 hover:text-white transition-all shadow-2xl active:scale-95">Disconnect_Signal</button>
               </div>
             </LiveKitRoom>
           </div>
         )}
 
+        {/* Modal de signature */}
         {showWaiver && (
           <div className="fixed inset-0 z-[200] bg-black/95 flex items-center justify-center p-6 backdrop-blur-xl">
-            <div className="w-full max-w-2xl bg-[#0a0a0a] border border-white/10 rounded-[2.5rem] p-12 space-y-8 shadow-2xl">
-              <div className="flex items-center gap-4 text-red-500 font-black uppercase italic text-3xl">
-                <AlertTriangle size={32} /> Safety_Waiver_v4.0
+            <div className="w-full max-w-2xl bg-[#0a0a0a] border border-white/10 rounded-[2.5rem] p-12 space-y-8 shadow-2xl animate-in fade-in zoom-in duration-300">
+              <div className="flex items-center gap-4 text-red-500 font-black uppercase italic text-3xl tracking-tighter">
+                <AlertTriangle size={32} /> Safety_Waiver_v4.2
               </div>
-              <p className="text-gray-500 text-[10px] leading-relaxed uppercase">
-                En signant ce contrat, l'Opérateur accepte l'exposition totale de ses données biométriques et décharge NORD.VANTIX de toute responsabilité en cas de perte de signal ou d'intégrité physique.
+              <p className="text-gray-500 text-[10px] leading-relaxed uppercase tracking-wide">
+                En apposant votre signature électronique, vous reconnaissez que NORD.VANTIX ne peut être tenu responsable de toute défaillance neurologique, perte de données biométriques ou interruption de signal en zone hostile.
               </p>
               <div className="bg-white rounded-2xl h-64 overflow-hidden shadow-inner">
                 <SignatureCanvas ref={sigCanvas} penColor='black' canvasProps={{className: 'w-full h-full'}} />
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <button onClick={() => setShowWaiver(false)} className="py-5 bg-white/5 text-gray-500 font-black uppercase text-[10px] rounded-2xl hover:bg-white/10 transition-all">Cancel</button>
-                <button onClick={signLegalWaiver} className="py-5 bg-[#00FFC2] text-black font-black uppercase text-[10px] rounded-2xl hover:scale-[1.02] transition-all shadow-lg shadow-[#00FFC2]/20">Authorize_Neural_Link</button>
+                <button onClick={() => setShowWaiver(false)} className="py-5 bg-white/5 text-gray-500 font-black uppercase text-[10px] rounded-2xl hover:bg-white/10 transition-all">Cancel_Op</button>
+                <button onClick={signLegalWaiver} className="py-5 bg-[#00FFC2] text-black font-black uppercase text-[10px] rounded-2xl hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-[#00FFC2]/20">Authorize_Neural_Link</button>
               </div>
             </div>
           </div>
@@ -512,9 +270,9 @@ function InputBox({ label, value, onChange, type = "text", placeholder = "" }: {
     <div className="space-y-2">
       <label className="text-[9px] font-black uppercase text-gray-500 tracking-[0.2em] block ml-1">{label}</label>
       {type === "textarea" ? (
-        <textarea placeholder={placeholder} value={value} onChange={(e) => onChange(e.target.value)} className="w-full bg-black border border-white/10 p-5 rounded-2xl text-xs text-white outline-none focus:border-[#00FFC2] transition-colors h-32 resize-none placeholder-gray-800" />
+        <textarea placeholder={placeholder} value={value} onChange={(e) => onChange(e.target.value)} className="w-full bg-black border border-white/10 p-5 rounded-2xl text-xs text-white outline-none focus:border-[#00FFC2] transition-all h-32 resize-none placeholder-gray-800" />
       ) : (
-        <input placeholder={placeholder} type={type} value={value} onChange={(e) => onChange(e.target.value)} className="w-full bg-black border border-white/10 p-5 rounded-2xl text-xs text-white outline-none focus:border-[#00FFC2] transition-colors placeholder-gray-800" />
+        <input placeholder={placeholder} type={type} value={value} onChange={(e) => onChange(e.target.value)} className="w-full bg-black border border-white/10 p-5 rounded-2xl text-xs text-white outline-none focus:border-[#00FFC2] transition-all placeholder-gray-800" />
       )}
     </div>
   );

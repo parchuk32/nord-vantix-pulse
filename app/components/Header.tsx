@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import { Activity, Lock, LogOut, LogIn } from 'lucide-react';
+import { Activity, Lock, LogOut, LogIn, Settings } from 'lucide-react'; // Ajout de Settings
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
@@ -63,10 +63,10 @@ export default function Header() {
           strokeWidth={2.5} 
           className="w-5 h-5 md:w-6 md:h-6 text-[#00FFC2] drop-shadow-[0_0_5px_#00FFC2]" 
         />
-        <span className="text-white font-black tracking-[0.2em] md:tracking-[0.3em] text-sm md:text-lg">PULSE</span>
+        <span className="text-white font-black tracking-[0.2em] md:tracking-[0.3em] text-sm md:text-lg uppercase">Pulse</span>
       </div>
 
-      {/* CENTRE : Navigation Horizontale (Scrollable sur mobile) */}
+      {/* CENTRE : Navigation Horizontale */}
       <nav className="flex items-center h-full gap-4 md:gap-10 overflow-x-auto no-scrollbar mx-4 scroll-smooth">
         {navItems.map((item) => (
           <Link 
@@ -90,11 +90,20 @@ export default function Header() {
         ))}
       </nav>
 
-      {/* DROITE : Secteur et Auth */}
+      {/* DROITE : Settings (Engrenage) et Auth */}
       <div className="flex items-center gap-2 md:gap-6 shrink-0">
-        <div className="hidden lg:block text-right">
-          <p className="text-[9px] text-gray-500 tracking-widest leading-none uppercase">Sector: Palvinice</p>
-        </div>
+        
+        {/* L'ENGRENAGE ANIMÉ */}
+        <Link 
+          href="/settings" 
+          onClick={(e) => handleNavClick(e, false)} // Accès privé
+          className="group p-2 flex items-center justify-center transition-all"
+        >
+          <Settings 
+            size={18} 
+            className={`text-gray-500 group-hover:text-[#00FFC2] transition-transform duration-700 group-hover:rotate-180 cursor-pointer ${pathname === '/settings' ? 'text-[#00FFC2] rotate-90' : ''}`} 
+          />
+        </Link>
         
         <div className="flex items-center gap-4 border-l border-white/10 pl-4 md:pl-6">
           {isAuthenticated ? (
