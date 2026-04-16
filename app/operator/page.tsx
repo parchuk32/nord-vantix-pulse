@@ -4,7 +4,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
 import SignatureCanvas from 'react-signature-canvas';
-import { LiveKitRoom } from '@livekit/components-react';
+import { LiveKitRoom, VideoConference } from '@livekit/components-react';
 import { 
   LayoutDashboard, Settings, Wallet, Zap, 
   Shield, CheckCircle2, AlertTriangle, X, Activity, Crosshair, Loader2
@@ -503,9 +503,13 @@ export default function PulseOperatorHub() {
               connect={true} 
               className="h-full w-full relative"
             >
-              <div className="absolute inset-0 z-0 bg-zinc-900 flex items-center justify-center">
-                 <p className="text-[#00FFC2] animate-pulse font-black uppercase text-xs tracking-[0.5em]">Transmitting_Neural_Link...</p>
+              
+              {/* === C'EST ICI QUE ÇA A CHANGÉ === */}
+              <div className="absolute inset-0 z-0 bg-black">
+                 <VideoConference />
               </div>
+              {/* ================================= */}
+
               <div className="absolute inset-0 p-6 md:p-10 flex flex-col justify-between pointer-events-none z-10">
                 <div className="flex justify-between items-start">
                    <div className="bg-red-600 px-4 py-1.5 text-[10px] font-black uppercase italic shadow-lg animate-pulse flex items-center gap-2">
