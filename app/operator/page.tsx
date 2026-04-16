@@ -24,45 +24,28 @@ export default function PulseOperatorHub() {
   const [activeCenterTab, setActiveCenterTab] = useState<'stats' | 'requests'>('requests');
   const [selectedMission, setSelectedMission] = useState<any>(null);
 
-  // États Techniques
   const [isLive, setIsLive] = useState(false);
   const [liveToken, setLiveToken] = useState("");
   const [deploying, setDeploying] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
 
-  // Form States
   const [missionDesc, setMissionDesc] = useState("");
   const [minViewers, setMinViewers] = useState("");
   const [requestedBounty, setRequestedBounty] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // --- 1. SYSTÈME DE NETTOYAGE (ANTI-ZOMBIE / SESSION FANTÔME) --- 
+  // --- 1. CLEANUP : FERMETURE PROPRE POUR LE WATCHER ---
   useEffect(() => {
-    const endSessionOnLeave = async () => {
-      // Si on quitte la page alors qu'un live ou un déploiement était en cours
+    const endSession = async () => {
       if ((isLive || deploying) && selectedMission) {
+        // Remet en approved pour que le watcher voit que le signal est coupé
         await supabase.from('missions').update({ status: 'approved' }).eq('id', selectedMission.id);
       }
     };
-
-    return () => {
-      endSessionOnLeave(); // Nettoyage lors de la navigation interne
-    };
+    return () => { endSession(); };
   }, [isLive, deploying, selectedMission]);
 
-  // Gestion de la fermeture brusque du navigateur [cite: 353, 357]
-  useEffect(() => {
-    const handleUnload = () => {
-      if ((isLive || deploying) && selectedMission) {
-        const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/missions?id=eq.${selectedMission.id}`;
-        // navigator.sendBeacon est la seule méthode fiable pour envoyer des données à la fermeture de l'onglet
-        navigator.sendBeacon(url, JSON.stringify({ status: 'approved' }));
-      }
-    };
-    window.addEventListener('beforeunload', handleUnload);
-    return () => window.removeEventListener('beforeunload', handleUnload);
-  }, [isLive, deploying, selectedMission]);
-
+  // --- 2. AUTH & FETCH ---
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -83,20 +66,24 @@ export default function PulseOperatorHub() {
     }
   };
 
-  // --- 2. LOGIQUE DE DÉPLOIEMENT CORRIGÉE --- [cite: 332, 345]
+  // --- 3. DÉPLOIEMENT (FIX WATCHER DISPLAY) ---
   const handleDeploy = async () => {
-    // CORRECTION : On autorise si c'est approved OU active (pour relancer si bloqué) 
     if (!selectedMission || (selectedMission.status !== 'approved' && selectedMission.status !== 'active')) return;
     
     setDeploying(true);
     try {
-      const resp = await fetch(`/api/get-participant-token?room=room-${user.id}&username=OPERATOR-${user.id.substring(0,5)}`);
-      const data = await resp.json();
-      if (!data.token) throw new Error("Accès refusé");
-      
-      setLiveToken(data.token);
+      // ÉTAPE A : On prévient Supabase (le Watcher voit le statut changer)
       await supabase.from('missions').update({ status: 'active' }).eq('id', selectedMission.id);
+
+      // ÉTAPE B : On récupère le token avec un nom de room standard basé sur la MISSION ID
+      const roomName = `room-${selectedMission.id}`;
+      const resp = await fetch(`/api/get-participant-token?room=${roomName}&username=OPERATOR-${user.id.substring(0,4)}`);
+      const data = await resp.json();
       
+      if (!data.token) throw new Error("Token failure");
+      setLiveToken(data.token);
+
+      // ÉTAPE C : Animation de lancement
       let timer = 3; setCountdown(timer);
       const interval = setInterval(() => {
         timer--; setCountdown(timer);
@@ -108,7 +95,9 @@ export default function PulseOperatorHub() {
       }, 1000);
     } catch (e) { 
       setDeploying(false); 
-      alert("Erreur Uplink Réseau"); 
+      // Si erreur, on remet en approved
+      await supabase.from('missions').update({ status: 'approved' }).eq('id', selectedMission.id);
+      alert("Erreur d'uplink. Vérifiez votre connexion."); 
     }
   };
 
@@ -127,10 +116,9 @@ export default function PulseOperatorHub() {
 
   return (
     <div className="h-screen w-full bg-[#020202] font-mono text-white flex flex-col overflow-hidden p-2 gap-2 relative">
-      {/* HUD OVERLAY */}
       <div className="fixed inset-0 pointer-events-none z-50 opacity-[0.03] bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_2px,3px_100%]" />
 
-      {/* LIVE VIEW MODE */}
+      {/* --- VUE LIVE OVERLAY --- */}
       {isLive && liveToken && (
         <div className="fixed inset-0 z-[100] bg-black animate-in fade-in duration-500">
           <LiveKitRoom video={true} audio={true} token={liveToken} serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL} connect={true} className="h-full">
@@ -144,7 +132,7 @@ export default function PulseOperatorHub() {
         </div>
       )}
 
-      {/* HEADER TABS [cite: 311, 315] */}
+      {/* --- HEADER --- */}
       <header className="h-16 w-full border border-white/10 bg-white/[0.02] flex items-center justify-between px-6 backdrop-blur-md">
         <div className="flex items-center gap-8">
           <div className="flex items-center gap-3">
@@ -156,43 +144,40 @@ export default function PulseOperatorHub() {
             <TabButton active={activeCenterTab === 'requests'} onClick={() => setActiveCenterTab('requests')} icon={<FileText size={14} />} label="NEW_REQUEST" />
           </nav>
         </div>
-        <div className="w-10 h-10 rounded-full border border-[#00FFC2]/30 overflow-hidden shadow-[0_0_10px_rgba(0,255,194,0.1)]">
+        <div className="w-10 h-10 rounded-full border border-[#00FFC2]/30 overflow-hidden">
             <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.id}`} alt="pfp" />
         </div>
       </header>
 
-      {/* MAIN COCKPIT GRID [cite: 288, 312] */}
+      {/* --- GRID --- */}
       <div className="flex-1 grid grid-cols-12 gap-2 overflow-hidden">
-        
-        {/* LEFT: DATABASE [cite: 317] */}
         <aside className="col-span-3 border border-white/10 bg-white/[0.01] flex flex-col overflow-hidden">
             <div className="p-4 border-b border-white/10 bg-white/[0.02] flex items-center gap-2">
                 <Target size={14} className="text-[#00FFC2]" />
-                <span className="text-[10px] font-black uppercase tracking-widest">Mission_Database</span>
+                <span className="text-[10px] font-black uppercase tracking-widest">Database</span>
             </div>
             <div className="flex-1 overflow-y-auto p-2 space-y-4 custom-scrollbar">
                 <MissionCategory label="Active / Approved" items={getMissionsByStatus('approved').concat(getMissionsByStatus('active'))} onSelect={setSelectedMission} activeId={selectedMission?.id} color="#00FFC2" icon={<CheckCircle2 size={10}/>} />
-                <MissionCategory label="Pending_Review" items={getMissionsByStatus('pending')} onSelect={setSelectedMission} activeId={selectedMission?.id} color="#60A5FA" icon={<Clock size={10}/>} />
+                <MissionCategory label="Pending" items={getMissionsByStatus('pending')} onSelect={setSelectedMission} activeId={selectedMission?.id} color="#60A5FA" icon={<Clock size={10}/>} />
             </div>
         </aside>
 
-        {/* MIDDLE: INTERFACE DYNAMIQUE [cite: 313, 316] */}
         <main className="col-span-6 border border-white/10 bg-white/[0.01] flex flex-col overflow-hidden">
             {activeCenterTab === 'requests' ? (
                 <div className="p-8 flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2">
-                    <h2 className="text-3xl font-black italic uppercase tracking-tighter border-b border-white/5 pb-4">Create_New_Contract</h2>
+                    <h2 className="text-3xl font-black italic uppercase tracking-tighter border-b border-white/5 pb-4">New_Contract</h2>
                     <div className="space-y-4">
-                        <textarea value={missionDesc} onChange={(e) => setMissionDesc(e.target.value)} className="w-full bg-black border border-white/10 p-4 text-sm text-[#00FFC2] h-32 outline-none focus:border-[#00FFC2]" placeholder="Describe challenge..." />
+                        <textarea value={missionDesc} onChange={(e) => setMissionDesc(e.target.value)} className="w-full bg-black border border-white/10 p-4 text-sm text-[#00FFC2] h-32 outline-none focus:border-[#00FFC2]" placeholder="Mission details..." />
                         <div className="grid grid-cols-2 gap-4">
-                            <InputSmall label="Min_Viewers" value={minViewers} onChange={setMinViewers} />
+                            <InputSmall label="Min Viewers" value={minViewers} onChange={setMinViewers} />
                             <InputSmall label="Price ($)" value={requestedBounty} onChange={setRequestedBounty} />
                         </div>
-                        <div className="p-4 border border-white/5 bg-white/[0.01] rounded-sm space-y-4">
-                            <div className="h-32 bg-white rounded-sm overflow-hidden border border-white/10">
+                        <div className="p-4 border border-white/5 bg-white/[0.01] space-y-4">
+                            <div className="h-32 bg-white rounded-sm overflow-hidden">
                                 <SignatureCanvas ref={sigCanvas} penColor='black' canvasProps={{className: 'w-full h-full'}} />
                             </div>
                             <button onClick={() => store.setModuleStatus('safetyValid', true)} className={`w-full py-2 text-[8px] font-black uppercase tracking-widest transition-all ${store.safetyValid ? 'bg-[#00FFC2] text-black' : 'bg-white/5 text-gray-500'}`}>
-                                {store.safetyValid ? "ID_CONFIRMED" : "Sign_Handshake"}
+                                {store.safetyValid ? "ID_CONFIRMED" : "Confirm Handshake"}
                             </button>
                         </div>
                         <button onClick={async () => {
@@ -203,28 +188,25 @@ export default function PulseOperatorHub() {
                             fetchMissions(user.id);
                             setActiveCenterTab('stats');
                             setIsSubmitting(false);
-                        }} disabled={!store.safetyValid || isSubmitting} className="w-full py-5 bg-white text-black font-black uppercase text-xs tracking-[0.3em] hover:bg-[#00FFC2] transition-all">Submit_Request</button>
+                        }} disabled={!store.safetyValid || isSubmitting} className="w-full py-5 bg-white text-black font-black uppercase text-xs tracking-[0.3em] hover:bg-[#00FFC2] transition-all">Transmit_Proposal</button>
                     </div>
                 </div>
             ) : (
                 <div className="p-8 flex flex-col gap-8">
-                    <h2 className="text-3xl font-black italic uppercase tracking-tighter border-b border-white/5 pb-4 text-[#00FFC2]">Operations_Dashboard</h2>
+                    <h2 className="text-3xl font-black italic uppercase tracking-tighter border-b border-white/5 pb-4 text-[#00FFC2]">Ops_Dashboard</h2>
                     <div className="grid grid-cols-2 gap-4">
                         <StatsBox label="Success_Rate" value="88.4%" icon={<Zap size={18}/>} />
-                        <StatsBox label="Avg_Bounty" value="$1,240" icon={<Activity size={18}/>} />
-                        <StatsBox label="Neutral_Load" value="32%" icon={<Cpu size={18}/>} />
                         <StatsBox label="Stability" value="99.9%" icon={<Globe size={18}/>} />
                     </div>
                 </div>
             )}
         </main>
 
-        {/* RIGHT: TARGETING & DEPLOY [cite: 314, 318, 347] */}
         <aside className="col-span-3 flex flex-col gap-2">
             <div className="flex-1 border border-white/10 bg-white/[0.02] p-5 flex flex-col gap-4">
                 <div className="flex items-center gap-2 text-gray-500 border-b border-white/5 pb-2">
                     <Target size={14} />
-                    <span className="text-[10px] font-black uppercase tracking-widest">Selected_Contract</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest">Active_Target</span>
                 </div>
                 {selectedMission ? (
                     <div className="space-y-4">
@@ -234,12 +216,11 @@ export default function PulseOperatorHub() {
                             <MiniMetric label="BOUNTY" value={`$${selectedMission.bounty}`} />
                         </div>
                     </div>
-                ) : <p className="text-xs text-gray-600 italic">No mission selected...</p>}
+                ) : <p className="text-xs text-gray-600 italic">No selection...</p>}
             </div>
 
             <button 
                 onClick={handleDeploy}
-                // CORRECTION : Actif si approved OU active [cite: 347, 350]
                 disabled={!selectedMission || (selectedMission.status !== 'approved' && selectedMission.status !== 'active') || deploying}
                 className={`h-40 border-2 flex flex-col items-center justify-center gap-3 transition-all relative overflow-hidden group ${
                     (selectedMission?.status === 'approved' || selectedMission?.status === 'active') 
@@ -255,7 +236,7 @@ export default function PulseOperatorHub() {
                 ) : (
                     <>
                         <Zap size={32} className={(selectedMission?.status === 'approved' || selectedMission?.status === 'active') ? "animate-bounce" : ""} />
-                        <span className="text-2xl font-black italic uppercase tracking-tighter">Deploy_Uplink</span>
+                        <span className="text-2xl font-black italic uppercase tracking-tighter">Deploy_Link</span>
                         <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
                     </>
                 )}
@@ -266,7 +247,7 @@ export default function PulseOperatorHub() {
   );
 }
 
-// COMPOSANTS HELPERS (Identiques à la version précédente)
+// HELPERS
 function TabButton({ active, onClick, icon, label }: any) {
     return (
         <button onClick={onClick} className={`flex items-center gap-2 px-6 py-2 rounded-md transition-all ${active ? 'bg-[#00FFC2] text-black font-black' : 'text-gray-500 hover:text-white font-bold'}`}>
