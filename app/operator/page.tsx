@@ -35,6 +35,9 @@ export default function PulseOperatorHub() {
   const [riskLevel, setRiskLevel] = useState<'LOW' | 'MID' | 'EXTREME'>('LOW');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // AJOUT : Stockage du vrai token LiveKit
+  const [liveToken, setLiveToken] = useState("");
+
   const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
 
   const subTabs = ['General', 'Security', 'Billing', 'Notifications', 'Referral', 'Sharing'];
@@ -174,23 +177,44 @@ export default function PulseOperatorHub() {
 
   const activeMission = missions.find(m => m.status === 'approved');
 
-  const handleDeploy = () => {
+  // MODIFICATION : handleDeploy demande un vrai token à l'API
+  const handleDeploy = async () => {
     if (!store.safetyValid || !activeMission) {
       showToast("Contrat légal non signé ou aucune mission approuvée.", "error");
       return;
     }
+    
     setDeploying(true);
-    let timer = 3;
-    setCountdown(timer);
-    const interval = setInterval(() => {
-      timer--;
-      setCountdown(timer);
-      if (timer === 0) {
-        clearInterval(interval);
-        setIsLive(true);
-        setDeploying(false);
+
+    try {
+      // 1. REQUÊTE RÉELLE : On demande le token à votre API
+      const resp = await fetch(`/api/get-participant-token?room=room-${user.id}&username=OPERATOR-${user.id}`);
+      const data = await resp.json();
+      
+      if (!data.token) {
+        throw new Error("Connexion LiveKit rejetée par le serveur.");
       }
-    }, 1000);
+      
+      // 2. On sauvegarde le vrai token
+      setLiveToken(data.token);
+
+      // 3. Lancement du compte à rebours (seulement si le token est validé)
+      let timer = 3;
+      setCountdown(timer);
+      const interval = setInterval(() => {
+        timer--;
+        setCountdown(timer);
+        if (timer === 0) {
+          clearInterval(interval);
+          setIsLive(true);
+          setDeploying(false);
+        }
+      }, 1000);
+
+    } catch (e: any) {
+      setDeploying(false);
+      showToast(`Échec Uplink: ${e.message}`, "error");
+    }
   };
 
   if (!user) return null;
@@ -467,9 +491,18 @@ export default function PulseOperatorHub() {
           </div>
         )}
 
-        {isLive && activeMission && (
+        {/* MODIFICATION : On vérifie que isLive, activeMission ET liveToken sont présents */}
+        {isLive && activeMission && liveToken && (
           <div className="fixed inset-0 z-[100] bg-black animate-in fade-in duration-500">
-            <LiveKitRoom video audio token="DUMMY" serverUrl="DUMMY" connect className="h-full w-full relative">
+            {/* On injecte les vraies variables dans LiveKitRoom */}
+            <LiveKitRoom 
+              video={true} 
+              audio={true} 
+              token={liveToken} 
+              serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL} 
+              connect={true} 
+              className="h-full w-full relative"
+            >
               <div className="absolute inset-0 z-0 bg-zinc-900 flex items-center justify-center">
                  <p className="text-[#00FFC2] animate-pulse font-black uppercase text-xs tracking-[0.5em]">Transmitting_Neural_Link...</p>
               </div>
