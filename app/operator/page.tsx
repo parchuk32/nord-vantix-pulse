@@ -34,18 +34,55 @@ export default function PulseOperatorHub() {
   const [requestedBounty, setRequestedBounty] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // --- 1. SÉCURITÉ DE FERMETURE (CORRIGÉE : ÉVITE LE ROLLBACK ACCIDENTEL) ---
-  // On utilise sendBeacon pour informer Supabase uniquement si on ferme l'onglet brutalement
+  // =========================================================================
+  // 1. SÉCURITÉ DE FERMETURE (BLINDAGE ULTIME : ONGLET + RETOUR ARRIÈRE)
+  // =========================================================================
+  
+  const isLiveRef = useRef(isLive);
+  const missionRef = useRef(selectedMission);
+
+  // Garde toujours les dernières valeurs en mémoire pour le nettoyage
+  useEffect(() => {
+    isLiveRef.current = isLive;
+    missionRef.current = selectedMission;
+  }, [isLive, selectedMission]);
+
+  // A. Gestion de la fermeture violente (Croix rouge ou F5) avec "keepalive"
   useEffect(() => {
     const handleBeforeUnload = () => {
-      if (isLive && selectedMission) {
-        const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/missions?id=eq.${selectedMission.id}`;
-        navigator.sendBeacon(url, JSON.stringify({ status: 'approved' }));
+      if (isLiveRef.current && missionRef.current) {
+        const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/missions?id=eq.${missionRef.current.id}`;
+        fetch(url, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
+            'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`
+          },
+          body: JSON.stringify({ status: 'approved' }),
+          keepalive: true // Force l'envoi réseau même si la page est détruite
+        });
       }
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [isLive, selectedMission]);
+  }, []);
+
+  // B. Gestion du bouton "Retour" ou navigation interne (Démontage React)
+  useEffect(() => {
+    return () => {
+      // Ce code s'exécute uniquement quand on quitte la page via Next.js
+      if (isLiveRef.current && missionRef.current) {
+        console.log("🧹 Cleanup: L'opérateur a quitté, retour de la mission en 'approved'");
+        supabase.from('missions')
+          .update({ status: 'approved' })
+          .eq('id', missionRef.current.id)
+          .then();
+      }
+    };
+  }, []); // Le tableau vide garantit l'exécution uniquement au démontage final
+
+  // =========================================================================
 
   // --- 2. AUTH & FETCH ---
   useEffect(() => {
@@ -64,12 +101,11 @@ export default function PulseOperatorHub() {
     const { data } = await supabase.from('missions').select('*').eq('user_id', userId).order('created_at', { ascending: false });
     if (data) {
         setMissions(data);
-        // Ne sélectionne par défaut que si on a pas déjà fait un choix
         if (data.length > 0 && !selectedMission) setSelectedMission(data[0]);
     }
   };
 
-  // --- 3. DÉPLOIEMENT DU SIGNAL (SÉCURISÉ) ---
+  // --- 3. DÉPLOIEMENT DU SIGNAL ---
   const handleDeploy = async () => {
     if (!selectedMission?.id) {
       alert("⚠️ ERREUR : Aucune mission sélectionnée.");
@@ -80,7 +116,6 @@ export default function PulseOperatorHub() {
     setDeploying(true);
 
     try {
-      // ÉTAPE A : Forcer la mise à jour BDD et vérifier le résultat
       const { data: updateData, error: updateError } = await supabase
         .from('missions')
         .update({ status: 'active' })
@@ -95,13 +130,12 @@ export default function PulseOperatorHub() {
 
       if (!updateData || updateData.length === 0) {
         setDeploying(false);
-        alert("⚠️ ÉCHEC : L'ID de la mission n'a pas été trouvé ou vous n'avez pas la permission de la modifier.");
+        alert("⚠️ ÉCHEC : L'ID de la mission n'a pas été trouvé ou permission refusée.");
         return;
       }
 
       console.log("✅ BDD PASSÉE EN 'ACTIVE'", updateData[0]);
 
-      // ÉTAPE B : Génération du token LiveKit
       const roomName = `mission_${selectedMission.id}`;
       const resp = await fetch(`/api/get-participant-token?room=${roomName}&username=OP_${user.id.substring(0,4)}`);
       const data = await resp.json();
@@ -111,7 +145,6 @@ export default function PulseOperatorHub() {
       }
       setLiveToken(data.token);
 
-      // ÉTAPE C : Séquence de lancement
       let timer = 3; 
       setCountdown(timer);
       const interval = setInterval(() => {
@@ -129,12 +162,11 @@ export default function PulseOperatorHub() {
       console.error("💥 ERREUR CRITIQUE:", e);
       alert(`CRASH SYSTÈME : ${e.message}`);
       setDeploying(false); 
-      // Rollback en cas de crash critique
       await supabase.from('missions').update({ status: 'approved' }).eq('id', selectedMission.id);
     }
   };
 
-  // --- 4. ABANDON DE MISSION ---
+  // --- 4. ABANDON DE MISSION MANUEL ---
   const abortMission = async () => { 
     setIsLive(false); 
     setLiveToken(""); 
