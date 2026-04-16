@@ -7,7 +7,7 @@ import SignatureCanvas from 'react-signature-canvas';
 import { LiveKitRoom, VideoConference, RoomAudioRenderer } from '@livekit/components-react';
 import { 
   Zap, Shield, Activity, Target, Cpu, BarChart3, Fingerprint, 
-  Crosshair, FileText, CheckCircle2, XCircle, Clock, Send, Globe, Loader2
+  Crosshair, FileText, CheckCircle2, Clock, Send, Globe, Loader2
 } from 'lucide-react';
 import { useDeployStore } from "../../store/useDeployStore";
 import '@livekit/components-styles';
@@ -34,18 +34,17 @@ export default function PulseOperatorHub() {
   const [requestedBounty, setRequestedBounty] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // --- 1. SYSTÈME DE NETTOYAGE (ÉVITE LE SIGNAL FANTÔME CHEZ LE WATCHER) ---
+  // --- 1. CLEANUP ---
   useEffect(() => {
-    const endSessionOnLeave = async () => {
+    const endSession = async () => {
       if ((isLive || deploying) && selectedMission) {
-        // Si on quitte, on remet en approved pour couper le flux chez les watchers
         await supabase.from('missions').update({ status: 'approved' }).eq('id', selectedMission.id);
       }
     };
-    return () => { endSessionOnLeave(); };
+    return () => { endSession(); };
   }, [isLive, deploying, selectedMission]);
 
-  // --- 2. AUTH & RÉCUPÉRATION DES DONNÉES ---
+  // --- 2. AUTH ---
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -66,25 +65,28 @@ export default function PulseOperatorHub() {
     }
   };
 
-  // --- 3. DÉPLOIEMENT DU LIVE (FIX SYNCHRO WATCHER) ---
+  // --- 3. DÉPLOYEMENT AVEC LOGS ---
   const handleDeploy = async () => {
-    // On autorise si c'est approved OU déjà active (reconnexion)
     if (!selectedMission || (selectedMission.status !== 'approved' && selectedMission.status !== 'active')) return;
     
+    console.log("🚀 [OPERATOR] Initialisation du live pour:", selectedMission.id);
     setDeploying(true);
+    
     try {
-      // ÉTAPE A : Signal à Supabase (Le Watcher voit le bouton "Live" apparaître)
+      // ÉTAPE A : Supabase Active
       await supabase.from('missions').update({ status: 'active' }).eq('id', selectedMission.id);
+      console.log("✅ [OPERATOR] Statut Supabase: ACTIVE");
 
-      // ÉTAPE B : Génération du token avec la room synchro
-      const roomName = `mission_${selectedMission.id}`; // Format critique !
-      const resp = await fetch(`/api/get-participant-token?room=${roomName}&username=OP_${user.id.substring(0,4)}`);
+      // ÉTAPE B : Token
+      const roomName = `mission_${selectedMission.id}`;
+      const resp = await fetch(`/api/get-participant-token?room=${roomName}&username=OPERATOR_${user.id.substring(0,4)}`);
       const data = await resp.json();
       
-      if (!data.token) throw new Error("Erreur Token");
+      if (!data.token) throw new Error("Token failure");
+      console.log("🔑 [OPERATOR] Token reçu pour la room:", roomName);
       setLiveToken(data.token);
 
-      // ÉTAPE C : Compte à rebours
+      // ÉTAPE C : Countdown
       let timer = 3; setCountdown(timer);
       const interval = setInterval(() => {
         timer--; setCountdown(timer);
@@ -92,12 +94,13 @@ export default function PulseOperatorHub() {
           clearInterval(interval); 
           setIsLive(true); 
           setDeploying(false); 
+          console.log("🎬 [OPERATOR] SIGNAL DÉPLOYÉ");
         }
       }, 1000);
     } catch (e) { 
+      console.error("❌ [OPERATOR] Erreur:", e);
       setDeploying(false); 
       await supabase.from('missions').update({ status: 'approved' }).eq('id', selectedMission.id);
-      alert("Échec de l'uplink neural."); 
     }
   };
 
@@ -116,23 +119,18 @@ export default function PulseOperatorHub() {
 
   return (
     <div className="h-screen w-full bg-[#020202] font-mono text-white flex flex-col overflow-hidden p-2 gap-2 relative">
-      <div className="fixed inset-0 pointer-events-none z-50 opacity-[0.03] bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_2px,3px_100%]" />
-
-      {/* --- VUE LIVE (SI DÉPLOYÉ) --- */}
       {isLive && liveToken && (
-        <div className="fixed inset-0 z-[100] bg-black animate-in fade-in duration-500">
+        <div className="fixed inset-0 z-[100] bg-black">
           <LiveKitRoom video={true} audio={true} token={liveToken} serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL} connect={true} className="h-full">
             <VideoConference />
             <RoomAudioRenderer />
             <div className="absolute top-10 inset-x-0 flex flex-col items-center pointer-events-none z-20">
-              <div className="px-10 py-3 bg-red-600/20 border border-red-500 backdrop-blur-md text-red-500 font-black uppercase text-[10px] tracking-[0.3em] rounded-full animate-pulse mb-4">Signal_Operational</div>
               <button onClick={abortMission} className="pointer-events-auto px-10 py-3 bg-black/80 border border-red-500 text-red-500 font-black uppercase text-[10px] rounded-full tracking-widest backdrop-blur-md hover:bg-red-600 hover:text-white transition-all shadow-2xl">Disconnect_Signal</button>
             </div>
           </LiveKitRoom>
         </div>
       )}
 
-      {/* --- HEADER --- */}
       <header className="h-16 w-full border border-white/10 bg-white/[0.02] flex items-center justify-between px-6 backdrop-blur-md">
         <div className="flex items-center gap-8">
           <div className="flex items-center gap-3">
@@ -149,38 +147,34 @@ export default function PulseOperatorHub() {
         </div>
       </header>
 
-      {/* --- GRID PRINCIPALE --- */}
       <div className="flex-1 grid grid-cols-12 gap-2 overflow-hidden">
-        
-        {/* COL GAUCHE : DATABASE */}
         <aside className="col-span-3 border border-white/10 bg-white/[0.01] flex flex-col overflow-hidden">
             <div className="p-4 border-b border-white/10 bg-white/[0.02] flex items-center gap-2">
                 <Target size={14} className="text-[#00FFC2]" />
-                <span className="text-[10px] font-black uppercase tracking-widest">Mission_Database</span>
+                <span className="text-[10px] font-black uppercase tracking-widest">Database</span>
             </div>
-            <div className="flex-1 overflow-y-auto p-2 space-y-4 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto p-2 space-y-4">
                 <MissionCategory label="Active / Approved" items={getMissionsByStatus('approved').concat(getMissionsByStatus('active'))} onSelect={setSelectedMission} activeId={selectedMission?.id} color="#00FFC2" icon={<CheckCircle2 size={10}/>} />
                 <MissionCategory label="Pending" items={getMissionsByStatus('pending')} onSelect={setSelectedMission} activeId={selectedMission?.id} color="#60A5FA" icon={<Clock size={10}/>} />
             </div>
         </aside>
 
-        {/* COL MILIEU : STATS OU DEMANDES */}
         <main className="col-span-6 border border-white/10 bg-white/[0.01] flex flex-col overflow-hidden">
             {activeCenterTab === 'requests' ? (
                 <div className="p-8 flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2">
-                    <h2 className="text-3xl font-black italic uppercase tracking-tighter border-b border-white/5 pb-4">Create_New_Contract</h2>
+                    <h2 className="text-3xl font-black italic uppercase tracking-tighter border-b border-white/5 pb-4">New_Contract</h2>
                     <div className="space-y-4">
-                        <textarea value={missionDesc} onChange={(e) => setMissionDesc(e.target.value)} className="w-full bg-black border border-white/10 p-4 text-sm text-[#00FFC2] h-32 outline-none focus:border-[#00FFC2] transition-all" placeholder="Describe the challenge..." />
+                        <textarea value={missionDesc} onChange={(e) => setMissionDesc(e.target.value)} className="w-full bg-black border border-white/10 p-4 text-sm text-[#00FFC2] h-32 outline-none" placeholder="Describe challenge..." />
                         <div className="grid grid-cols-2 gap-4">
                             <InputSmall label="Min Viewers" value={minViewers} onChange={setMinViewers} />
                             <InputSmall label="Price ($)" value={requestedBounty} onChange={setRequestedBounty} />
                         </div>
                         <div className="p-4 border border-white/5 bg-white/[0.01] rounded-sm space-y-4">
-                            <div className="h-32 bg-white rounded-sm overflow-hidden border border-white/10 shadow-inner">
+                            <div className="h-32 bg-white rounded-sm overflow-hidden">
                                 <SignatureCanvas ref={sigCanvas} penColor='black' canvasProps={{className: 'w-full h-full'}} />
                             </div>
                             <button onClick={() => store.setModuleStatus('safetyValid', true)} className={`w-full py-2 text-[8px] font-black uppercase tracking-widest transition-all ${store.safetyValid ? 'bg-[#00FFC2] text-black shadow-[0_0_10px_#00FFC2]' : 'bg-white/5 text-gray-500 hover:bg-white/10'}`}>
-                                {store.safetyValid ? "ID_CONFIRMED" : "Sign_Handshake_Authorization"}
+                                {store.safetyValid ? "ID_CONFIRMED" : "Sign_Handshake"}
                             </button>
                         </div>
                         <button onClick={async () => {
@@ -191,28 +185,25 @@ export default function PulseOperatorHub() {
                             fetchMissions(user.id);
                             setActiveCenterTab('stats');
                             setIsSubmitting(false);
-                        }} disabled={!store.safetyValid || isSubmitting} className="w-full py-5 bg-white text-black font-black uppercase text-xs tracking-[0.3em] hover:bg-[#00FFC2] transition-all disabled:opacity-20">Submit_Proposal</button>
+                        }} disabled={!store.safetyValid || isSubmitting} className="w-full py-5 bg-white text-black font-black uppercase text-xs tracking-[0.3em] hover:bg-[#00FFC2] transition-all">Submit_Proposal</button>
                     </div>
                 </div>
             ) : (
-                <div className="p-8 flex flex-col gap-8 animate-in fade-in">
-                    <h2 className="text-3xl font-black italic uppercase tracking-tighter border-b border-white/5 pb-4 text-[#00FFC2]">Operations_Dashboard</h2>
+                <div className="p-8 flex flex-col gap-8">
+                    <h2 className="text-3xl font-black italic uppercase tracking-tighter border-b border-white/5 pb-4 text-[#00FFC2]">Ops_Dashboard</h2>
                     <div className="grid grid-cols-2 gap-4">
                         <StatsBox label="Success_Rate" value="88.4%" icon={<Zap size={18}/>} />
-                        <StatsBox label="Avg_Bounty" value="$1,240" icon={<Activity size={18}/>} />
-                        <StatsBox label="Neutral_Load" value="32%" icon={<Cpu size={18}/>} />
                         <StatsBox label="Stability" value="99.9%" icon={<Globe size={18}/>} />
                     </div>
                 </div>
             )}
         </main>
 
-        {/* COL DROITE : DÉTAILS & DÉPLOIEMENT */}
         <aside className="col-span-3 flex flex-col gap-2">
             <div className="flex-1 border border-white/10 bg-white/[0.02] p-5 flex flex-col gap-4">
                 <div className="flex items-center gap-2 text-gray-500 border-b border-white/5 pb-2">
                     <Target size={14} />
-                    <span className="text-[10px] font-black uppercase tracking-widest">Selected_Contract</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest">Active_Target</span>
                 </div>
                 {selectedMission ? (
                     <div className="space-y-4">
@@ -222,7 +213,7 @@ export default function PulseOperatorHub() {
                             <MiniMetric label="BOUNTY" value={`$${selectedMission.bounty}`} />
                         </div>
                     </div>
-                ) : <p className="text-xs text-gray-600 italic">No mission selected...</p>}
+                ) : <p className="text-xs text-gray-600 italic text-center">No mission selected...</p>}
             </div>
 
             <button 
@@ -231,13 +222,13 @@ export default function PulseOperatorHub() {
                 className={`h-40 border-2 flex flex-col items-center justify-center gap-3 transition-all relative overflow-hidden group ${
                     (selectedMission?.status === 'approved' || selectedMission?.status === 'active') 
                     ? 'border-[#00FFC2] bg-[#00FFC2] text-black shadow-[0_0_30px_rgba(0,255,194,0.2)]' 
-                    : 'border-white/5 bg-white/[0.01] text-white/10 cursor-not-allowed'
+                    : 'border-white/5 bg-white/[0.01] text-white/10'
                 }`}
             >
                 {deploying ? (
                     <div className="flex flex-col items-center animate-pulse">
                         <span className="text-4xl font-black">{countdown}</span>
-                        <span className="text-[8px] font-bold uppercase">Initializing Uplink...</span>
+                        <span className="text-[8px] font-bold uppercase">Uplink...</span>
                     </div>
                 ) : (
                     <>
@@ -253,10 +244,10 @@ export default function PulseOperatorHub() {
   );
 }
 
-// COMPOSANTS INTERNES
+// HELPERS (Gardés pour la structure)
 function TabButton({ active, onClick, icon, label }: any) {
     return (
-        <button onClick={onClick} className={`flex items-center gap-2 px-6 py-2 rounded-md transition-all ${active ? 'bg-[#00FFC2] text-black font-black shadow-[0_0_10px_#00FFC2]' : 'text-gray-500 hover:text-white font-bold'}`}>
+        <button onClick={onClick} className={`flex items-center gap-2 px-6 py-2 rounded-md transition-all ${active ? 'bg-[#00FFC2] text-black font-black' : 'text-gray-500 hover:text-white font-bold'}`}>
             {icon} <span className="text-[9px] uppercase tracking-widest">{label}</span>
         </button>
     );
@@ -282,7 +273,7 @@ function MissionCategory({ label, items, onSelect, activeId, color, icon }: any)
                 {items.map((m: any) => (
                     <button key={m.id} onClick={() => onSelect(m)} className={`w-full text-left p-2 border transition-all flex items-center justify-between ${activeId === m.id ? 'bg-white/10 border-white/20' : 'border-transparent hover:bg-white/[0.02]'}`}>
                         <span className={`text-[10px] font-bold uppercase truncate max-w-[150px] ${activeId === m.id ? 'text-white' : 'text-gray-500'}`}>{m.objective}</span>
-                        <div className="w-1.5 h-1.5 rounded-full shadow-[0_0_5px_currentColor]" style={{ backgroundColor: color }} />
+                        <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
                     </button>
                 ))}
             </div>
@@ -303,7 +294,7 @@ function InputSmall({ label, value, onChange }: any) {
     return (
         <div className="space-y-1">
             <label className="text-[8px] font-black text-gray-600 uppercase">{label}</label>
-            <input type="number" value={value} onChange={(e) => onChange(e.target.value)} className="w-full bg-black border border-white/10 p-3 text-xs text-[#00FFC2] outline-none focus:border-[#00FFC2] transition-colors" />
+            <input type="number" value={value} onChange={(e) => onChange(e.target.value)} className="w-full bg-black border border-white/10 p-3 text-xs text-[#00FFC2] outline-none focus:border-[#00FFC2]" />
         </div>
     );
 }
