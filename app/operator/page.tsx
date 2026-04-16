@@ -34,16 +34,18 @@ export default function PulseOperatorHub() {
   const [requestedBounty, setRequestedBounty] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // --- 1. SYSTÈME DE NETTOYAGE (CORRIGÉ AVEC ASYNC) ---
+  // --- 1. SÉCURITÉ DE FERMETURE (CORRIGÉE : ÉVITE LE ROLLBACK ACCIDENTEL) ---
+  // On utilise sendBeacon pour informer Supabase uniquement si on ferme l'onglet brutalement
   useEffect(() => {
-    const cleanup = async () => {
-      if ((isLive || deploying) && selectedMission) {
-        console.log("🧹 Cleanup: Remise en état 'approved'...");
-        await supabase.from('missions').update({ status: 'approved' }).eq('id', selectedMission.id);
+    const handleBeforeUnload = () => {
+      if (isLive && selectedMission) {
+        const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/missions?id=eq.${selectedMission.id}`;
+        navigator.sendBeacon(url, JSON.stringify({ status: 'approved' }));
       }
     };
-    return () => { cleanup(); };
-  }, [isLive, deploying, selectedMission]);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isLive, selectedMission]);
 
   // --- 2. AUTH & FETCH ---
   useEffect(() => {
@@ -62,24 +64,23 @@ export default function PulseOperatorHub() {
     const { data } = await supabase.from('missions').select('*').eq('user_id', userId).order('created_at', { ascending: false });
     if (data) {
         setMissions(data);
+        // Ne sélectionne par défaut que si on a pas déjà fait un choix
         if (data.length > 0 && !selectedMission) setSelectedMission(data[0]);
     }
   };
 
-  // --- 3. DÉPLOIEMENT DU SIGNAL (CORRECTIONS MAJEURES) ---
+  // --- 3. DÉPLOIEMENT DU SIGNAL (SÉCURISÉ) ---
   const handleDeploy = async () => {
-    console.log("🔘 BOUTON DEPLOY CLIQUÉ");
-
     if (!selectedMission?.id) {
-      console.error("❌ Erreur: Aucune mission sélectionnée.");
+      alert("⚠️ ERREUR : Aucune mission sélectionnée.");
       return;
     }
     
+    console.log("📡 Tentative d'activation pour ID:", selectedMission.id);
     setDeploying(true);
 
     try {
-      // ÉTAPE A : Signal à Supabase avec vérification de retour
-      console.log("📡 Envoi signal 'active' à Supabase pour ID:", selectedMission.id);
+      // ÉTAPE A : Forcer la mise à jour BDD et vérifier le résultat
       const { data: updateData, error: updateError } = await supabase
         .from('missions')
         .update({ status: 'active' })
@@ -87,23 +88,27 @@ export default function PulseOperatorHub() {
         .select();
 
       if (updateError) {
-        console.error("❌ ERREUR SUPABASE (Probablement RLS) :", updateError.message);
-        throw updateError;
+        setDeploying(false);
+        alert(`❌ BLOCAGE SUPABASE (RLS) :\n${updateError.message}\nVérifiez les politiques de sécurité SQL.`);
+        return;
       }
 
       if (!updateData || updateData.length === 0) {
-        console.warn("⚠️ Aucune ligne modifiée. Vérifie l'ID ou les permissions.");
-        throw new Error("Mise à jour BDD échouée");
+        setDeploying(false);
+        alert("⚠️ ÉCHEC : L'ID de la mission n'a pas été trouvé ou vous n'avez pas la permission de la modifier.");
+        return;
       }
 
-      console.log("✅ BDD mise à jour avec succès:", updateData[0]);
+      console.log("✅ BDD PASSÉE EN 'ACTIVE'", updateData[0]);
 
-      // ÉTAPE B : Génération du token
+      // ÉTAPE B : Génération du token LiveKit
       const roomName = `mission_${selectedMission.id}`;
       const resp = await fetch(`/api/get-participant-token?room=${roomName}&username=OP_${user.id.substring(0,4)}`);
       const data = await resp.json();
       
-      if (!data.token) throw new Error("Échec réception Token LiveKit");
+      if (!data.token) {
+        throw new Error("Le serveur n'a pas renvoyé de token LiveKit valide.");
+      }
       setLiveToken(data.token);
 
       // ÉTAPE C : Séquence de lancement
@@ -116,23 +121,25 @@ export default function PulseOperatorHub() {
           clearInterval(interval); 
           setIsLive(true); 
           setDeploying(false); 
-          console.log("🎬 SIGNAL EN DIRECT");
+          console.log("🎬 EN LIGNE !");
         }
       }, 1000);
 
     } catch (e: any) { 
-      console.error("💥 ÉCHEC DÉPLOIEMENT:", e.message);
+      console.error("💥 ERREUR CRITIQUE:", e);
+      alert(`CRASH SYSTÈME : ${e.message}`);
       setDeploying(false); 
-      // Tentative de rollback
+      // Rollback en cas de crash critique
       await supabase.from('missions').update({ status: 'approved' }).eq('id', selectedMission.id);
     }
   };
 
+  // --- 4. ABANDON DE MISSION ---
   const abortMission = async () => { 
     setIsLive(false); 
     setLiveToken(""); 
     if (selectedMission) {
-      console.log("🛑 Signal terminé par l'opérateur.");
+      console.log("🛑 Signal terminé, passage en 'completed'");
       await supabase.from('missions').update({ status: 'completed' }).eq('id', selectedMission.id);
       fetchMissions(user.id);
     }
@@ -159,7 +166,7 @@ export default function PulseOperatorHub() {
             <VideoConference />
             <RoomAudioRenderer />
             <div className="absolute top-10 inset-x-0 flex flex-col items-center z-20">
-              <div className="px-10 py-2 bg-red-600/20 border border-red-500 text-red-500 font-black uppercase text-[10px] rounded-full animate-pulse mb-4 tracking-widest">Signal_Live</div>
+              <div className="px-10 py-2 bg-red-600/20 border border-red-500 text-red-500 font-black uppercase text-[10px] rounded-full animate-pulse mb-4 tracking-widest shadow-[0_0_20px_rgba(255,0,0,0.4)]">Signal_Live</div>
               <button onClick={abortMission} className="px-8 py-3 bg-black/80 border border-red-500 text-red-500 font-black uppercase text-[10px] rounded-full hover:bg-red-600 hover:text-white transition-all backdrop-blur-md">Terminate_Link</button>
             </div>
           </LiveKitRoom>
