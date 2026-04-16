@@ -63,7 +63,9 @@ export default function PlayerHUD() {
       {/* 1. LA CAMÉRA (Arrière-plan total) */}
       <div className="absolute inset-0 z-0">
         <LiveKitRoom 
-          video={true} audio={true} token={token} 
+          video={false} // MODIFIÉ : Le spectateur n'envoie pas sa vidéo
+          audio={false} // MODIFIÉ : Le spectateur n'envoie pas son micro
+          token={token} 
           serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL} 
           connect={true}
         >
