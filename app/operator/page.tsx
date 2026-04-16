@@ -4,11 +4,13 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
 import SignatureCanvas from 'react-signature-canvas';
+import { LiveKitRoom, VideoConference, RoomAudioRenderer } from '@livekit/components-react';
 import { 
   Zap, Shield, Activity, Target, Cpu, BarChart3, Fingerprint, 
-  Crosshair, FileText, CheckCircle2, XCircle, Clock, AlertTriangle, Send, Globe
+  Crosshair, FileText, CheckCircle2, XCircle, Clock, Send, Globe, Loader2
 } from 'lucide-react';
 import { useDeployStore } from "../../store/useDeployStore";
+import '@livekit/components-styles';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL || "", process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "");
 
@@ -22,12 +24,17 @@ export default function PulseOperatorHub() {
   const [activeCenterTab, setActiveCenterTab] = useState<'stats' | 'requests'>('requests');
   const [selectedMission, setSelectedMission] = useState<any>(null);
 
+  // États Techniques
+  const [isLive, setIsLive] = useState(false);
+  const [liveToken, setLiveToken] = useState("");
+  const [deploying, setDeploying] = useState(false);
+  const [countdown, setCountdown] = useState<number | null>(null);
+
   // Form States
   const [missionDesc, setMissionDesc] = useState("");
   const [minViewers, setMinViewers] = useState("");
   const [requestedBounty, setRequestedBounty] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [deploying, setDeploying] = useState(false);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -64,41 +71,83 @@ export default function PulseOperatorHub() {
     setIsSubmitting(false);
   };
 
+  // --- LOGIQUE DE DÉPLOIEMENT RÉELLE ---
+  const handleDeploy = async () => {
+    if (!selectedMission || selectedMission.status !== 'approved') return;
+    
+    setDeploying(true);
+    try {
+      // 1. Récupération du token LiveKit
+      const resp = await fetch(`/api/get-participant-token?room=room-${user.id}&username=OPERATOR-${user.id.substring(0,5)}`);
+      const data = await resp.json();
+      
+      if (!data.token) throw new Error("Accès refusé");
+      setLiveToken(data.token);
+
+      // 2. Mise à jour du statut dans Supabase
+      await supabase.from('missions').update({ status: 'active' }).eq('id', selectedMission.id);
+      
+      // 3. Compte à rebours immersif
+      let timer = 3; setCountdown(timer);
+      const interval = setInterval(() => {
+        timer--; setCountdown(timer);
+        if (timer === 0) { 
+          clearInterval(interval); 
+          setIsLive(true); 
+          setDeploying(false); 
+        }
+      }, 1000);
+    } catch (e) { 
+      setDeploying(false); 
+      alert("Erreur Uplink Réseau"); 
+    }
+  };
+
+  const abortMission = async () => { 
+    setIsLive(false); 
+    setLiveToken(""); 
+    if (selectedMission) {
+      await supabase.from('missions').update({ status: 'completed' }).eq('id', selectedMission.id);
+      fetchMissions(user.id);
+    }
+  };
+
   const getMissionsByStatus = (status: string) => missions.filter(m => m.status === status);
+
+  if (!user) return null;
 
   return (
     <div className="h-screen w-full bg-[#020202] font-mono text-white flex flex-col overflow-hidden p-2 gap-2 relative">
+      {/* EFFET CRT */}
       <div className="fixed inset-0 pointer-events-none z-50 opacity-[0.03] bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_2px,3px_100%]" />
 
-      {/* HEADER AVEC TABS NAVIGATION */}
+      {/* VUE LIVE (SI DÉPLOYÉ) */}
+      {isLive && liveToken && (
+        <div className="fixed inset-0 z-[100] bg-black animate-in fade-in duration-500">
+          <LiveKitRoom video={true} audio={true} token={liveToken} serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL} connect={true} className="h-full">
+            <VideoConference />
+            <RoomAudioRenderer />
+            <div className="absolute top-10 inset-x-0 flex flex-col items-center pointer-events-none z-20">
+              <div className="px-10 py-3 bg-red-600/20 border border-red-500 backdrop-blur-md text-red-500 font-black uppercase text-[10px] tracking-[0.3em] rounded-full animate-pulse mb-4">Signal_Operational</div>
+              <button onClick={abortMission} className="pointer-events-auto px-10 py-3 bg-black/80 border border-red-500 text-red-500 font-black uppercase text-[10px] rounded-full tracking-widest backdrop-blur-md hover:bg-red-600 hover:text-white transition-all shadow-2xl">Disconnect_Signal</button>
+            </div>
+          </LiveKitRoom>
+        </div>
+      )}
+
+      {/* HEADER */}
       <header className="h-16 w-full border border-white/10 bg-white/[0.02] flex items-center justify-between px-6 backdrop-blur-md">
         <div className="flex items-center gap-8">
           <div className="flex items-center gap-3">
             <Activity size={20} className="text-[#00FFC2] animate-pulse" />
             <span className="font-black tracking-[0.3em] text-sm italic">PULSE_OPS</span>
           </div>
-
           <nav className="flex items-center gap-2 bg-black/40 p-1 border border-white/5 rounded-lg">
-            <TabButton 
-                active={activeCenterTab === 'stats'} 
-                onClick={() => setActiveCenterTab('stats')} 
-                icon={<BarChart3 size={14} />} 
-                label="DASHBOARD_STATS" 
-            />
-            <TabButton 
-                active={activeCenterTab === 'requests'} 
-                onClick={() => setActiveCenterTab('requests')} 
-                icon={<FileText size={14} />} 
-                label="NEW_REQUEST" 
-            />
+            <TabButton active={activeCenterTab === 'stats'} onClick={() => setActiveCenterTab('stats')} icon={<BarChart3 size={14} />} label="DASHBOARD_STATS" />
+            <TabButton active={activeCenterTab === 'requests'} onClick={() => setActiveCenterTab('requests')} icon={<FileText size={14} />} label="NEW_REQUEST" />
           </nav>
         </div>
-
         <div className="flex items-center gap-4">
-            <div className="text-right hidden md:block">
-                <p className="text-[8px] text-gray-500 uppercase tracking-widest">Operator_Node</p>
-                <p className="text-[10px] font-black text-[#00FFC2]">{user?.email?.split('@')[0]}</p>
-            </div>
             <div className="w-10 h-10 rounded-full border border-[#00FFC2]/30 overflow-hidden shadow-[0_0_10px_rgba(0,255,194,0.1)]">
                 <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.id}`} alt="pfp" />
             </div>
@@ -107,7 +156,7 @@ export default function PulseOperatorHub() {
 
       <div className="flex-1 grid grid-cols-12 gap-2 overflow-hidden">
         
-        {/* COLONNE GAUCHE : MISSION LIST (PAR CATÉGORIES) */}
+        {/* COL GAUCHE : MISSIONS */}
         <aside className="col-span-3 border border-white/10 bg-white/[0.01] flex flex-col overflow-hidden">
             <div className="p-4 border-b border-white/10 bg-white/[0.02] flex items-center gap-2">
                 <Target size={14} className="text-[#00FFC2]" />
@@ -116,124 +165,86 @@ export default function PulseOperatorHub() {
             <div className="flex-1 overflow-y-auto p-2 space-y-4 custom-scrollbar">
                 <MissionCategory label="Active / Approved" items={getMissionsByStatus('approved').concat(getMissionsByStatus('active'))} onSelect={setSelectedMission} activeId={selectedMission?.id} color="#00FFC2" icon={<CheckCircle2 size={10}/>} />
                 <MissionCategory label="Pending_Review" items={getMissionsByStatus('pending')} onSelect={setSelectedMission} activeId={selectedMission?.id} color="#60A5FA" icon={<Clock size={10}/>} />
-                <MissionCategory label="Completed / Success" items={getMissionsByStatus('success').concat(getMissionsByStatus('completed'))} onSelect={setSelectedMission} activeId={selectedMission?.id} color="#A855F7" icon={<Zap size={10}/>} />
-                <MissionCategory label="Dismissed / Failed" items={getMissionsByStatus('dismissed').concat(getMissionsByStatus('failed'))} onSelect={setSelectedMission} activeId={selectedMission?.id} color="#EF4444" icon={<XCircle size={10}/>} />
+                <MissionCategory label="Completed" items={getMissionsByStatus('success').concat(getMissionsByStatus('completed'))} onSelect={setSelectedMission} activeId={selectedMission?.id} color="#A855F7" icon={<Zap size={10}/>} />
             </div>
         </aside>
 
-        {/* COLONNE MILIEU : STATS OU REQUESTS (INTERCHANGEABLE) */}
+        {/* COL MILIEU : STATS OU REQUESTS */}
         <main className="col-span-6 border border-white/10 bg-white/[0.01] flex flex-col overflow-hidden">
             {activeCenterTab === 'requests' ? (
                 <div className="p-8 flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2">
                     <h2 className="text-3xl font-black italic uppercase tracking-tighter border-b border-white/5 pb-4">Create_New_Contract</h2>
-                    
                     <div className="space-y-4">
-                        <div className="space-y-2">
-                            <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Mission_Objective</label>
-                            <textarea 
-                                value={missionDesc}
-                                onChange={(e) => setMissionDesc(e.target.value)}
-                                className="w-full bg-black border border-white/10 p-4 text-sm text-[#00FFC2] h-32 outline-none focus:border-[#00FFC2] transition-all"
-                                placeholder="Describe the challenge..."
-                            />
-                        </div>
+                        <textarea value={missionDesc} onChange={(e) => setMissionDesc(e.target.value)} className="w-full bg-black border border-white/10 p-4 text-sm text-[#00FFC2] h-32 outline-none focus:border-[#00FFC2]" placeholder="Describe challenge..." />
                         <div className="grid grid-cols-2 gap-4">
                             <InputSmall label="Min_Viewers" value={minViewers} onChange={setMinViewers} />
-                            <InputSmall label="Price_Bounty ($)" value={requestedBounty} onChange={setRequestedBounty} />
+                            <InputSmall label="Price ($)" value={requestedBounty} onChange={setRequestedBounty} />
                         </div>
-
-                        {/* WAIVER INTEGRÉ DANS LE FORM */}
                         <div className="p-4 border border-white/5 bg-white/[0.01] rounded-sm space-y-4">
-                            <div className="flex items-center gap-2 text-[9px] font-black text-red-500 uppercase tracking-widest">
-                                <Shield size={12} /> Legal_Signature_Required
-                            </div>
                             <div className="h-32 bg-white rounded-sm overflow-hidden border border-white/10">
                                 <SignatureCanvas ref={sigCanvas} penColor='black' canvasProps={{className: 'w-full h-full'}} />
                             </div>
-                            <button 
-                                onClick={() => store.setModuleStatus('safetyValid', true)} 
-                                className={`w-full py-2 text-[8px] font-black uppercase tracking-widest transition-all ${store.safetyValid ? 'bg-[#00FFC2] text-black' : 'bg-white/5 text-gray-500 hover:bg-white/10'}`}
-                            >
-                                {store.safetyValid ? "ID_CONFIRMED" : "Confirm_Identity_Handshake"}
+                            <button onClick={() => store.setModuleStatus('safetyValid', true)} className={`w-full py-2 text-[8px] font-black uppercase tracking-widest transition-all ${store.safetyValid ? 'bg-[#00FFC2] text-black' : 'bg-white/5 text-gray-500'}`}>
+                                {store.safetyValid ? "ID_CONFIRMED" : "Sign_Handshake"}
                             </button>
                         </div>
-
-                        <button 
-                            onClick={submitMissionProposal}
-                            disabled={!store.safetyValid || isSubmitting}
-                            className="w-full py-5 bg-white text-black font-black uppercase text-xs tracking-[0.3em] hover:bg-[#00FFC2] transition-all flex items-center justify-center gap-3 disabled:opacity-20"
-                        >
+                        <button onClick={submitMissionProposal} disabled={!store.safetyValid || isSubmitting} className="w-full py-5 bg-white text-black font-black uppercase text-xs tracking-[0.3em] hover:bg-[#00FFC2] disabled:opacity-20 transition-all">
                             Submit_Request <Send size={14}/>
                         </button>
                     </div>
                 </div>
             ) : (
-                <div className="p-8 flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-2 overflow-y-auto">
+                <div className="p-8 flex flex-col gap-8">
                     <h2 className="text-3xl font-black italic uppercase tracking-tighter border-b border-white/5 pb-4 text-[#00FFC2]">Operations_Dashboard</h2>
                     <div className="grid grid-cols-2 gap-4">
                         <StatsBox label="Success_Rate" value="88.4%" icon={<Zap size={18}/>} />
                         <StatsBox label="Avg_Bounty" value="$1,240" icon={<Activity size={18}/>} />
                         <StatsBox label="Neutral_Load" value="32%" icon={<Cpu size={18}/>} />
-                        <StatsBox label="Uplink_Stability" value="99.9%" icon={<Globe size={18}/>} />
-                    </div>
-                    <div className="flex-1 border border-white/5 bg-black/40 min-h-[200px] flex items-center justify-center relative">
-                        <Crosshair size={100} className="text-white/5" />
-                        <span className="text-[9px] text-gray-700 uppercase absolute top-4 left-4 tracking-widest italic">Live_Visual_Metrics_042</span>
+                        <StatsBox label="Stability" value="99.9%" icon={<Globe size={18}/>} />
                     </div>
                 </div>
             )}
         </main>
 
-        {/* COLONNE DROITE : SELECTED MISSION & DEPLOY (ACTION) */}
+        {/* COL DROITE : SELECTED & DEPLOY */}
         <aside className="col-span-3 flex flex-col gap-2">
-            {/* BOX HAUT : DÉTAILS DE LA MISSION SÉLECTIONNÉE */}
-            <div className="flex-1 border border-white/10 bg-white/[0.02] p-5 flex flex-col gap-4 overflow-hidden relative">
+            <div className="flex-1 border border-white/10 bg-white/[0.02] p-5 flex flex-col gap-4">
                 <div className="flex items-center gap-2 text-gray-500 border-b border-white/5 pb-2">
                     <Target size={14} />
                     <span className="text-[10px] font-black uppercase tracking-widest">Selected_Contract</span>
                 </div>
-                
                 {selectedMission ? (
-                    <div className="space-y-4 animate-in fade-in duration-500">
-                        <div className="space-y-1">
-                            <span className="text-[8px] text-[#00FFC2] font-black uppercase">Objective:</span>
-                            <p className="text-[10px] leading-relaxed text-gray-300 font-bold italic line-clamp-6 bg-white/[0.02] p-2">"{selectedMission.objective}"</p>
-                        </div>
+                    <div className="space-y-4">
+                        <p className="text-[10px] leading-relaxed text-gray-300 font-bold italic bg-white/[0.02] p-2">"{selectedMission.objective}"</p>
                         <div className="grid grid-cols-2 gap-2">
-                            <MiniMetric label="STATUS" value={selectedMission.status} color="#00FFC2" />
-                            <MiniMetric label="BOUNTY" value={`$${selectedMission.bounty}`} color="#FFF" />
-                            <MiniMetric label="VIEWERS" value={`${selectedMission.min_viewers}+`} color="#FFF" />
-                            <MiniMetric label="THREAT" value="MID" color="#60A5FA" />
+                            <MiniMetric label="STATUS" value={selectedMission.status} color={selectedMission.status === 'approved' ? '#00FFC2' : '#60A5FA'} />
+                            <MiniMetric label="BOUNTY" value={`$${selectedMission.bounty}`} />
                         </div>
                     </div>
-                ) : (
-                    <div className="flex-1 flex items-center justify-center text-gray-700 italic text-[10px]">No mission selected...</div>
-                )}
-                
-                <div className="mt-auto pt-4 border-t border-white/5">
-                    <div className="flex justify-between items-end">
-                        <span className="text-[8px] text-gray-600 font-black uppercase">Auth_Key</span>
-                        <span className="text-[10px] font-mono text-[#00FFC2]">PULSE-{selectedMission?.id.substring(0,8)}</span>
-                    </div>
-                </div>
+                ) : <p className="text-xs text-gray-600 italic">No mission selected...</p>}
             </div>
 
-            {/* BOX BAS : DEPLOY (ACTION FINALE) */}
             <button 
-                onClick={() => setDeploying(true)}
-                disabled={!selectedMission || selectedMission.status !== 'approved'}
+                onClick={handleDeploy}
+                disabled={!selectedMission || selectedMission.status !== 'approved' || deploying}
                 className={`h-40 border-2 flex flex-col items-center justify-center gap-3 transition-all relative overflow-hidden group ${
                     selectedMission?.status === 'approved' 
                     ? 'border-[#00FFC2] bg-[#00FFC2] text-black shadow-[0_0_30px_rgba(0,255,194,0.2)]' 
                     : 'border-white/5 bg-white/[0.01] text-white/10'
                 }`}
             >
-                <Zap size={32} className={selectedMission?.status === 'approved' ? "animate-bounce" : ""} />
-                <span className="text-2xl font-black italic uppercase tracking-tighter">Deploy_Uplink</span>
-                <span className="text-[9px] font-bold uppercase tracking-widest opacity-60">
-                    {selectedMission?.status === 'approved' ? 'Authorization_Granted' : 'Waiting_For_Approval'}
-                </span>
-                <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
+                {deploying ? (
+                    <div className="flex flex-col items-center animate-pulse">
+                        <span className="text-4xl font-black">{countdown}</span>
+                        <span className="text-[8px] font-bold uppercase">Uplink...</span>
+                    </div>
+                ) : (
+                    <>
+                        <Zap size={32} className={selectedMission?.status === 'approved' ? "animate-bounce" : ""} />
+                        <span className="text-2xl font-black italic uppercase tracking-tighter">Deploy_Uplink</span>
+                        <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
+                    </>
+                )}
             </button>
         </aside>
       </div>
@@ -241,32 +252,36 @@ export default function PulseOperatorHub() {
   );
 }
 
-// ─── MINI COMPOSANTS LOCAUX ──────────────────────────────────────────────────
-
-function TabButton({ active, onClick, icon, label }: { active: boolean, onClick: () => void, icon: any, label: string }) {
+// COMPOSANTS INTERNES
+function TabButton({ active, onClick, icon, label }: any) {
     return (
         <button onClick={onClick} className={`flex items-center gap-2 px-6 py-2 rounded-md transition-all ${active ? 'bg-[#00FFC2] text-black font-black' : 'text-gray-500 hover:text-white font-bold'}`}>
-            {icon}
-            <span className="text-[9px] uppercase tracking-widest">{label}</span>
+            {icon} <span className="text-[9px] uppercase tracking-widest">{label}</span>
         </button>
+    );
+}
+
+function StatsBox({ label, value, icon }: any) {
+    return (
+        <div className="bg-white/[0.02] border border-white/5 p-4 flex items-center justify-between">
+            <div className="flex flex-col gap-1">
+                <span className="text-[8px] text-gray-500 uppercase font-black">{label}</span>
+                <span className="text-xl font-black italic">{value}</span>
+            </div>
+            <div className="text-[#00FFC2] opacity-40">{icon}</div>
+        </div>
     );
 }
 
 function MissionCategory({ label, items, onSelect, activeId, color, icon }: any) {
     return (
         <div className="space-y-2">
-            <h4 className="text-[8px] font-black uppercase text-gray-600 tracking-[0.3em] flex items-center gap-2">
-                {icon} {label} ({items.length})
-            </h4>
+            <h4 className="text-[8px] font-black uppercase text-gray-600 flex items-center gap-2">{icon} {label}</h4>
             <div className="space-y-1">
                 {items.map((m: any) => (
-                    <button 
-                        key={m.id} 
-                        onClick={() => onSelect(m)}
-                        className={`w-full text-left p-2 border transition-all flex items-center justify-between group ${activeId === m.id ? 'bg-white/10 border-white/20' : 'bg-transparent border-transparent hover:bg-white/[0.02]'}`}
-                    >
+                    <button key={m.id} onClick={() => onSelect(m)} className={`w-full text-left p-2 border transition-all flex items-center justify-between ${activeId === m.id ? 'bg-white/10 border-white/20' : 'border-transparent hover:bg-white/[0.02]'}`}>
                         <span className={`text-[10px] font-bold uppercase truncate max-w-[150px] ${activeId === m.id ? 'text-white' : 'text-gray-500'}`}>{m.objective}</span>
-                        <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color, boxShadow: `0 0 5px ${color}` }} />
+                        <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
                     </button>
                 ))}
             </div>
@@ -274,23 +289,11 @@ function MissionCategory({ label, items, onSelect, activeId, color, icon }: any)
     );
 }
 
-function StatsBox({ label, value, icon }: any) {
-    return (
-        <div className="bg-white/[0.02] border border-white/5 p-4 flex items-center justify-between group hover:border-[#00FFC2]/30 transition-all">
-            <div className="flex flex-col gap-1">
-                <span className="text-[8px] text-gray-500 uppercase font-black">{label}</span>
-                <span className="text-xl font-black italic tracking-tighter">{value}</span>
-            </div>
-            <div className="text-[#00FFC2] opacity-20 group-hover:opacity-100 transition-opacity">{icon}</div>
-        </div>
-    );
-}
-
 function MiniMetric({ label, value, color }: any) {
     return (
-        <div className="bg-black/40 border border-white/5 p-2">
+        <div className="bg-black/40 border border-white/5 p-2 flex-1">
             <span className="text-[7px] text-gray-600 uppercase block mb-1">{label}</span>
-            <span className="text-[10px] font-black italic uppercase" style={{ color }}>{value}</span>
+            <span className="text-[10px] font-black italic uppercase" style={{ color: color || 'white' }}>{value}</span>
         </div>
     );
 }
@@ -299,10 +302,7 @@ function InputSmall({ label, value, onChange }: any) {
     return (
         <div className="space-y-1">
             <label className="text-[8px] font-black text-gray-600 uppercase">{label}</label>
-            <input 
-                type="number" value={value} onChange={(e) => onChange(e.target.value)}
-                className="w-full bg-black border border-white/10 p-3 text-xs text-[#00FFC2] outline-none focus:border-[#00FFC2]"
-            />
+            <input type="number" value={value} onChange={(e) => onChange(e.target.value)} className="w-full bg-black border border-white/10 p-3 text-xs text-[#00FFC2] outline-none focus:border-[#00FFC2]" />
         </div>
     );
 }
