@@ -1,8 +1,10 @@
 "use client";
-import { useState, useEffect, useRef } from 'react';
-import { LiveKitRoom, VideoConference, AudioConference, ControlBar } from '@livekit/components-react';
+import { useState, useEffect } from 'react';
+import { LiveKitRoom, VideoConference } from '@livekit/components-react';
 import { createClient } from '@supabase/supabase-js';
-import { Terminal, Send, Shield, Zap } from 'lucide-react';
+import { Terminal, Send } from 'lucide-react';
+// ⚠️ L'IMPORT LE PLUS IMPORTANT POUR L'AFFICHAGE :
+import '@livekit/components-styles';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL || "", process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "");
 
@@ -22,7 +24,6 @@ export default function PlayerHUD() {
       const resp = await fetch(`/api/get-participant-token?room=room-${id}&username=${id}`);
       const data = await resp.json();
       
-      // On s'assure que Supabase sait qu'on est en ligne
       await supabase.from('live_sessions').upsert([
         { player_id: id, status: 'active', bounty: 4500 }
       ], { onConflict: 'player_id' });
@@ -32,7 +33,6 @@ export default function PlayerHUD() {
     } catch (e) { alert("Erreur d'uplink"); }
   };
 
-  // Realtime Chat
   useEffect(() => {
     if (!active) return;
     const channel = supabase.channel('chat').on('postgres_changes', 
@@ -63,11 +63,13 @@ export default function PlayerHUD() {
       {/* 1. LA CAMÉRA (Arrière-plan total) */}
       <div className="absolute inset-0 z-0">
         <LiveKitRoom 
-          video={false} // MODIFIÉ : Le spectateur n'envoie pas sa vidéo
-          audio={false} // MODIFIÉ : Le spectateur n'envoie pas son micro
+          video={false} 
+          audio={false} 
           token={token} 
           serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL} 
           connect={true}
+          data-lk-theme="default"
+          className="w-full h-full"
         >
           <VideoConference />
         </LiveKitRoom>
@@ -84,11 +86,12 @@ export default function PlayerHUD() {
           </div>
           <div className="bg-black/60 p-2 text-right">
              <div className="text-red-500 text-[10px] font-black animate-pulse">REC ●</div>
-             <div className="text-[8px] text-gray-400">ID: {agentId}</div>
+             {/* SI C'EST ÉCRIT GHOST ICI, VOUS ÊTES DANS LA MAUVAISE SALLE */}
+             <div className={`${agentId === 'GHOST' ? 'text-red-500 font-bold' : 'text-gray-400'} text-[8px]`}>ID: {agentId}</div>
           </div>
         </div>
 
-        {/* MIDDLE : CHAT (Seulement à droite, plus compact) */}
+        {/* MIDDLE : CHAT */}
         <div className="flex justify-end h-1/3 my-4">
           <div className="w-48 flex flex-col pointer-events-auto bg-black/40 backdrop-blur-sm border border-white/10">
             <div className="p-1 bg-white/5 text-[8px] font-bold text-gray-400 border-b border-white/10 uppercase tracking-widest flex items-center gap-2">
@@ -128,7 +131,6 @@ export default function PlayerHUD() {
         </div>
       </div>
 
-      {/* SCANLINES (Effet visuel léger) */}
       <div className="absolute inset-0 pointer-events-none z-20 opacity-10 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_2px,3px_100%]" />
     </main>
   );
