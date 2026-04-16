@@ -176,7 +176,7 @@ export default function PulseOperatorHub() {
   // On inclut les missions "active" pour qu'elles survivent au refresh
   const activeMission = missions.find(m => m.status === 'approved' || m.status === 'active');
 
-  // NOUVEAU : Auto-reconnexion si on rafraîchit la page
+  // Auto-reconnexion si on rafraîchit la page
   useEffect(() => {
     const isLiveMode = localStorage.getItem('pulse_live_mode') === 'true';
     if (isLiveMode && activeMission?.status === 'active' && store.safetyValid && !isLive && !deploying && !liveToken) {
@@ -233,7 +233,7 @@ export default function PulseOperatorHub() {
     }
   };
 
-  // NOUVEAU : Fonction pour VRAIMENT couper le live
+  // Fonction pour VRAIMENT couper le live
   const abortMission = async () => {
     setIsLive(false);
     setLiveToken("");
@@ -250,7 +250,7 @@ export default function PulseOperatorHub() {
 
   return (
     <div className="h-screen w-full flex flex-col md:flex-row overflow-hidden bg-[#050505] font-mono text-white relative">
-      {store.settings.branding?.crtEffect && <div className="crt-overlay pointer-events-none z-50 opacity-5" />}
+      {store.settings.hud?.crtEffect && <div className="crt-overlay pointer-events-none z-50 opacity-5" />}
       
       {toast && (
         <div className={`fixed top-4 right-4 z-[300] px-6 py-3 rounded-xl flex items-center gap-3 font-black text-xs uppercase tracking-widest animate-in slide-in-from-top-4 fade-in duration-300 shadow-2xl ${toast.type === 'success' ? 'bg-[#00FFC2]/20 border border-[#00FFC2] text-[#00FFC2]' : 'bg-red-500/20 border border-red-500 text-red-500'}`}>
@@ -441,10 +441,10 @@ export default function PulseOperatorHub() {
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
                   <h3 className="text-xs font-black uppercase text-gray-500 tracking-widest">Operator Basics</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <InputBox label="Operator Handle" value={store.settings.general?.username || ''} onChange={(v) => store.updateSettings('general', {username: v.toUpperCase()})} />
-                    <InputBox label="Comms Email" value={store.settings.general?.email || ''} onChange={(v) => store.updateSettings('general', {email: v})} />
+                    <InputBox label="Operator Handle" value={store.settings.profile?.username || ''} onChange={(v) => store.updateSettings('profile', {username: v.toUpperCase()})} />
+                    <InputBox label="Comms Email" value={store.settings.account?.email || ''} onChange={(v) => store.updateSettings('account', {email: v})} />
                   </div>
-                  <InputBox label="Tactical Bio" type="textarea" value={store.settings.general?.bio || ''} onChange={(v) => store.updateSettings('general', {bio: v})} />
+                  <InputBox label="Tactical Bio" type="textarea" value={store.settings.profile?.bio || ''} onChange={(v) => store.updateSettings('profile', {bio: v})} />
                 </div>
               )}
 
@@ -455,12 +455,12 @@ export default function PulseOperatorHub() {
                       <div className="relative w-16 h-16 flex items-center justify-center">
                         <svg className="w-full h-full -rotate-90">
                           <circle cx="32" cy="32" r="28" fill="transparent" stroke="currentColor" strokeWidth="4" className="text-white/10" />
-                          <circle cx="32" cy="32" r="28" fill="transparent" stroke="currentColor" strokeWidth="4" strokeDasharray={175} strokeDashoffset={175 - (175 * (store.settings.security?.securityScore || 100)) / 100} className="text-[#00FFC2]" />
+                          <circle cx="32" cy="32" r="28" fill="transparent" stroke="currentColor" strokeWidth="4" strokeDasharray={175} strokeDashoffset={175 - (175 * (store.settings.privacy?.securityScore || 100)) / 100} className="text-[#00FFC2]" />
                         </svg>
-                        <span className="absolute text-[10px] font-black italic">{store.settings.security?.securityScore || 100}%</span>
+                        <span className="absolute text-[10px] font-black italic">{store.settings.privacy?.securityScore || 100}%</span>
                       </div>
                       <div>
-                        <p className="text-sm font-black uppercase text-white">System Security: {store.settings.security?.securityScore || 100}%</p>
+                        <p className="text-sm font-black uppercase text-white">System Security: {store.settings.privacy?.securityScore || 100}%</p>
                         <p className="text-[9px] text-gray-500 uppercase tracking-widest mt-1">Uplink is protected.</p>
                       </div>
                     </div>
@@ -484,8 +484,8 @@ export default function PulseOperatorHub() {
                   <div className="bg-black border border-white/10 p-8 rounded-3xl relative overflow-hidden group">
                     <div className="relative z-10">
                       <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest mb-2">Current Tier</p>
-                      <h4 className="text-4xl font-black italic text-white">{store.settings.billing?.plan || 'STANDARD'}</h4>
-                      <p className="text-[9px] text-[#00FFC2] uppercase mt-4">Next billing: {store.settings.billing?.nextBilling || 'N/A'}</p>
+                      <h4 className="text-4xl font-black italic text-white">{store.settings.account?.plan || 'STANDARD'}</h4>
+                      <p className="text-[9px] text-[#00FFC2] uppercase mt-4">Next billing: {store.settings.account?.nextBilling || 'N/A'}</p>
                     </div>
                     <Zap className="absolute -bottom-10 -right-10 w-48 h-48 text-white/5 -rotate-12 group-hover:scale-110 transition-transform" />
                   </div>
@@ -494,8 +494,8 @@ export default function PulseOperatorHub() {
 
               {activeSubTab === 'Notifications' && (
                 <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-300">
-                  <ToggleRow label="Push Alerts (Mobile/Web)" active={store.settings.notifications?.push || false} onToggle={() => store.updateSettings('notifications', {push: !store.settings.notifications.push})} />
-                  <ToggleRow label="Tactical Comms (Live Bounties)" active={store.settings.notifications?.tacticalComms || false} onToggle={() => store.updateSettings('notifications', {tacticalComms: !store.settings.notifications.tacticalComms})} />
+                  <ToggleRow label="Push Alerts (Mobile/Web)" active={store.settings.notifications?.pushEnabled || false} onToggle={() => store.updateSettings('notifications', {pushEnabled: !store.settings.notifications.pushEnabled})} />
+                  <ToggleRow label="Tactical Comms (Live Bounties)" active={store.settings.notifications?.onAgentActivity || false} onToggle={() => store.updateSettings('notifications', {onAgentActivity: !store.settings.notifications.onAgentActivity})} />
                 </div>
               )}
 
@@ -521,8 +521,8 @@ export default function PulseOperatorHub() {
 
               {activeSubTab === 'Sharing' && (
                 <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-300">
-                  <ToggleRow label="Public Operator Profile" active={store.settings.sharing?.publicProfile || false} onToggle={() => store.updateSettings('sharing', {publicProfile: !store.settings.sharing.publicProfile})} />
-                  <ToggleRow label="Anonymous Mode (Hide Identity)" active={store.settings.sharing?.anonymousMode || false} onToggle={() => store.updateSettings('sharing', {anonymousMode: !store.settings.sharing.anonymousMode})} isDanger />
+                  <ToggleRow label="Public Operator Profile" active={store.settings.privacy?.publicProfile || false} onToggle={() => store.updateSettings('privacy', {publicProfile: !store.settings.privacy.publicProfile})} />
+                  <ToggleRow label="Ghost Protocol (Hide Identity)" active={store.settings.privacy?.ghostProtocol || false} onToggle={() => store.updateSettings('privacy', {ghostProtocol: !store.settings.privacy.ghostProtocol})} isDanger />
                 </div>
               )}
 
