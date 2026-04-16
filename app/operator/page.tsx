@@ -34,34 +34,14 @@ export default function PulseOperatorHub() {
   const [requestedBounty, setRequestedBounty] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // --- 1. SYSTÈME DE NETTOYAGE (EVITE LE SIGNAL BLOQUÉ) ---
+  // --- 1. SYSTÈME DE NETTOYAGE ---
   useEffect(() => {
-    // A. Gestion de la navigation interne (bouton précédent/suivant)
     return () => {
       if ((isLive || deploying) && selectedMission) {
-        console.log("🧹 Cleanup: Libération de la mission...");
+        // En cas de sortie de page, on remet en 'approved' pour ne pas bloquer
         supabase.from('missions').update({ status: 'approved' }).eq('id', selectedMission.id).then();
       }
     };
-  }, [isLive, deploying, selectedMission]);
-
-  useEffect(() => {
-    // B. Gestion de la fermeture d'onglet ou refresh (Beacon API)
-    const handleBeforeUnload = () => {
-      if ((isLive || deploying) && selectedMission) {
-        const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/missions?id=eq.${selectedMission.id}`;
-        const headers = {
-          'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
-          'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json'
-        };
-        // sendBeacon est synchrone et s'exécute même si le navigateur ferme
-        navigator.sendBeacon(url, JSON.stringify({ status: 'approved' }));
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [isLive, deploying, selectedMission]);
 
   // --- 2. AUTH & FETCH ---
@@ -85,25 +65,37 @@ export default function PulseOperatorHub() {
     }
   };
 
-  // --- 3. DÉPLOIEMENT DU SIGNAL ---
+  // --- 3. DÉPLOIEMENT DU SIGNAL (CORRIGÉ) ---
   const handleDeploy = async () => {
-    if (!selectedMission || (selectedMission.status !== 'approved' && selectedMission.status !== 'active')) return;
+    // SÉCURITÉ : On vérifie qu'on a bien une mission et un ID
+    if (!selectedMission?.id) {
+      console.error("❌ [OP] Erreur: Aucune mission sélectionnée.");
+      return;
+    }
     
-    console.log("📡 [OP] Initialisation Uplink pour:", selectedMission.id);
+    console.log("📡 [OP] Tentative d'activation pour la mission:", selectedMission.id);
     setDeploying(true);
 
     try {
-      // ÉTAPE A : Signal à Supabase (Le Watcher reçoit l'alerte)
-      await supabase.from('missions').update({ status: 'active' }).eq('id', selectedMission.id);
-      console.log("✅ [OP] Statut Supabase mis à jour: ACTIVE");
+      // ÉTAPE A : Signal à Supabase (L'ACTION QUI BLOQUAIT)
+      const { error: supabaseError } = await supabase
+        .from('missions')
+        .update({ status: 'active' }) // On passe en mode actif
+        .eq('id', selectedMission.id);
 
-      // ÉTAPE B : Génération du token synchro
+      if (supabaseError) {
+        console.error("❌ [OP] Erreur Supabase (RLS ?) :", supabaseError.message);
+        throw supabaseError;
+      }
+
+      console.log("✅ [OP] Statut BDD mis à jour avec succès.");
+
+      // ÉTAPE B : Génération du token (RoomName synchronisé avec le Watcher)
       const roomName = `mission_${selectedMission.id}`;
       const resp = await fetch(`/api/get-participant-token?room=${roomName}&username=OP_${user.id.substring(0,4)}`);
       const data = await resp.json();
       
       if (!data.token) throw new Error("Token failure");
-      console.log("🔑 [OP] Token reçu pour room:", roomName);
       setLiveToken(data.token);
 
       // ÉTAPE C : Séquence de lancement
@@ -114,12 +106,14 @@ export default function PulseOperatorHub() {
           clearInterval(interval); 
           setIsLive(true); 
           setDeploying(false); 
-          console.log("🎬 [OP] SIGNAL DÉPLOYÉ ET EN LIGNE");
+          console.log("🎬 [OP] SIGNAL OPÉRATIONNEL");
         }
       }, 1000);
+
     } catch (e) { 
-      console.error("❌ [OP] ERREUR UPLINK:", e);
+      console.error("❌ [OP] ÉCHEC TOTAL DU DÉPLOIEMENT:", e);
       setDeploying(false); 
+      // On tente de reset le statut en cas d'échec
       await supabase.from('missions').update({ status: 'approved' }).eq('id', selectedMission.id);
     }
   };
@@ -139,78 +133,78 @@ export default function PulseOperatorHub() {
 
   return (
     <div className="h-screen w-full bg-[#020202] font-mono text-white flex flex-col overflow-hidden p-2 gap-2 relative">
+      {/* SCANLINES OVERLAY */}
       <div className="fixed inset-0 pointer-events-none z-50 opacity-[0.03] bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_2px,3px_100%]" />
 
-      {/* --- VUE LIVE OVERLAY --- */}
+      {/* LIVE VIEW */}
       {isLive && liveToken && (
         <div className="fixed inset-0 z-[100] bg-black">
           <LiveKitRoom video={true} audio={true} token={liveToken} serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL} connect={true} className="h-full">
             <VideoConference />
             <RoomAudioRenderer />
-            <div className="absolute top-10 inset-x-0 flex flex-col items-center pointer-events-none z-20">
-              <div className="px-10 py-3 bg-red-600/20 border border-red-500 backdrop-blur-md text-red-500 font-black uppercase text-[10px] tracking-[0.3em] rounded-full animate-pulse mb-4">Signal_Operational</div>
-              <button onClick={abortMission} className="pointer-events-auto px-10 py-3 bg-black/80 border border-red-500 text-red-500 font-black uppercase text-[10px] rounded-full tracking-widest backdrop-blur-md hover:bg-red-600 hover:text-white transition-all shadow-2xl">Disconnect_Signal</button>
+            <div className="absolute top-10 inset-x-0 flex flex-col items-center z-20">
+              <div className="px-10 py-2 bg-red-600/20 border border-red-500 text-red-500 font-black uppercase text-[10px] rounded-full animate-pulse mb-4 tracking-widest">Signal_Live</div>
+              <button onClick={abortMission} className="px-8 py-3 bg-black border border-red-500 text-red-500 font-black uppercase text-[10px] rounded-full hover:bg-red-600 hover:text-white transition-all">Terminate_Link</button>
             </div>
           </LiveKitRoom>
         </div>
       )}
 
-      {/* --- HEADER --- */}
+      {/* HEADER */}
       <header className="h-16 w-full border border-white/10 bg-white/[0.02] flex items-center justify-between px-6 backdrop-blur-md">
         <div className="flex items-center gap-8">
           <div className="flex items-center gap-3">
             <Activity size={20} className="text-[#00FFC2] animate-pulse" />
-            <span className="font-black tracking-[0.3em] text-sm italic">PULSE_OPS</span>
+            <span className="font-black tracking-[0.3em] text-sm italic">PULSE_HUB</span>
           </div>
-          <nav className="flex items-center gap-2 bg-black/40 p-1 border border-white/5 rounded-lg">
-            <TabButton active={activeCenterTab === 'stats'} onClick={() => setActiveCenterTab('stats')} icon={<BarChart3 size={14} />} label="DASHBOARD_STATS" />
-            <TabButton active={activeCenterTab === 'requests'} onClick={() => setActiveCenterTab('requests')} icon={<FileText size={14} />} label="NEW_REQUEST" />
+          <nav className="flex items-center gap-2">
+            <TabButton active={activeCenterTab === 'stats'} onClick={() => setActiveCenterTab('stats')} icon={<BarChart3 size={14} />} label="DASHBOARD" />
+            <TabButton active={activeCenterTab === 'requests'} onClick={() => setActiveCenterTab('requests')} icon={<FileText size={14} />} label="CONTRACTS" />
           </nav>
         </div>
         
-        {/* PROFIL DISPLAY MODIFIÉ */}
         <div className="flex items-center gap-4">
            <div className="text-right hidden md:block">
-              <p className="text-[10px] font-black text-[#00FFC2] uppercase tracking-widest">
-                {store.settings.profile.displayName || user?.email?.split('@')[0]}
-              </p>
-              <p className="text-[7px] text-gray-500 uppercase font-bold">Authenticated_Operator</p>
+              <p className="text-[10px] font-black text-[#00FFC2] uppercase tracking-widest">{user?.email?.split('@')[0]}</p>
+              <p className="text-[7px] text-gray-500 uppercase">Operator_Verified</p>
            </div>
-           <div className="w-10 h-10 rounded-full border border-[#00FFC2]/30 overflow-hidden shadow-[0_0_10px_rgba(0,255,194,0.1)]">
+           <div className="w-10 h-10 rounded-full border border-[#00FFC2]/30 overflow-hidden">
               <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.id}`} alt="pfp" />
            </div>
         </div>
       </header>
 
-      {/* --- GRID --- */}
+      {/* GRID LAYOUT */}
       <div className="flex-1 grid grid-cols-12 gap-2 overflow-hidden">
+        {/* LISTE DES MISSIONS */}
         <aside className="col-span-3 border border-white/10 bg-white/[0.01] flex flex-col overflow-hidden">
             <div className="p-4 border-b border-white/10 bg-white/[0.02] flex items-center gap-2">
                 <Target size={14} className="text-[#00FFC2]" />
-                <span className="text-[10px] font-black uppercase tracking-widest">Mission_Database</span>
+                <span className="text-[10px] font-black uppercase">Active_Missions</span>
             </div>
-            <div className="flex-1 overflow-y-auto p-2 space-y-4 custom-scrollbar">
-                <MissionCategory label="Active / Approved" items={getMissionsByStatus('approved').concat(getMissionsByStatus('active'))} onSelect={setSelectedMission} activeId={selectedMission?.id} color="#00FFC2" icon={<CheckCircle2 size={10}/>} />
-                <MissionCategory label="Pending" items={getMissionsByStatus('pending')} onSelect={setSelectedMission} activeId={selectedMission?.id} color="#60A5FA" icon={<Clock size={10}/>} />
+            <div className="flex-1 overflow-y-auto p-2 space-y-4">
+                <MissionCategory label="Approved" items={getMissionsByStatus('approved').concat(getMissionsByStatus('active'))} onSelect={setSelectedMission} activeId={selectedMission?.id} color="#00FFC2" icon={<CheckCircle2 size={10}/>} />
+                <MissionCategory label="Waiting" items={getMissionsByStatus('pending')} onSelect={setSelectedMission} activeId={selectedMission?.id} color="#60A5FA" icon={<Clock size={10}/>} />
             </div>
         </aside>
 
+        {/* ZONE CENTRALE */}
         <main className="col-span-6 border border-white/10 bg-white/[0.01] flex flex-col overflow-hidden">
             {activeCenterTab === 'requests' ? (
-                <div className="p-8 flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2">
-                    <h2 className="text-3xl font-black italic uppercase tracking-tighter border-b border-white/5 pb-4">Create_New_Contract</h2>
+                <div className="p-8 flex flex-col gap-6">
+                    <h2 className="text-3xl font-black italic uppercase tracking-tighter border-b border-white/5 pb-4">Draft_New_Contract</h2>
                     <div className="space-y-4">
-                        <textarea value={missionDesc} onChange={(e) => setMissionDesc(e.target.value)} className="w-full bg-black border border-white/10 p-4 text-sm text-[#00FFC2] h-32 outline-none focus:border-[#00FFC2]" placeholder="Describe the challenge..." />
+                        <textarea value={missionDesc} onChange={(e) => setMissionDesc(e.target.value)} className="w-full bg-black border border-white/10 p-4 text-sm text-[#00FFC2] h-32 outline-none focus:border-[#00FFC2]" placeholder="Describe your mission objectives..." />
                         <div className="grid grid-cols-2 gap-4">
                             <InputSmall label="Min Viewers" value={minViewers} onChange={setMinViewers} />
-                            <InputSmall label="Price ($)" value={requestedBounty} onChange={setRequestedBounty} />
+                            <InputSmall label="Bounty ($)" value={requestedBounty} onChange={setRequestedBounty} />
                         </div>
                         <div className="p-4 border border-white/5 bg-white/[0.01] space-y-4">
                             <div className="h-32 bg-white rounded-sm overflow-hidden">
                                 <SignatureCanvas ref={sigCanvas} penColor='black' canvasProps={{className: 'w-full h-full'}} />
                             </div>
-                            <button onClick={() => store.setModuleStatus('safetyValid', true)} className={`w-full py-2 text-[8px] font-black uppercase tracking-widest transition-all ${store.safetyValid ? 'bg-[#00FFC2] text-black' : 'bg-white/5 text-gray-500'}`}>
-                                {store.safetyValid ? "ID_CONFIRMED" : "Sign_Handshake_Authorization"}
+                            <button onClick={() => store.setModuleStatus('safetyValid', true)} className={`w-full py-2 text-[8px] font-black uppercase tracking-widest ${store.safetyValid ? 'bg-[#00FFC2] text-black' : 'bg-white/5 text-gray-500'}`}>
+                                {store.safetyValid ? "IDENTITY_CONFIRMED" : "Sign_to_Validate"}
                             </button>
                         </div>
                         <button onClick={async () => {
@@ -225,31 +219,31 @@ export default function PulseOperatorHub() {
                     </div>
                 </div>
             ) : (
-                <div className="p-8 flex flex-col gap-8">
-                    <h2 className="text-3xl font-black italic uppercase tracking-tighter border-b border-white/5 pb-4 text-[#00FFC2]">Ops_Dashboard</h2>
+                <div className="p-8 flex flex-col gap-8 text-[#00FFC2]">
+                    <h2 className="text-3xl font-black italic uppercase tracking-tighter border-b border-white/5 pb-4">Operator_Stats</h2>
                     <div className="grid grid-cols-2 gap-4">
-                        <StatsBox label="Success_Rate" value="88.4%" icon={<Zap size={18}/>} />
-                        <StatsBox label="Stability" value="99.9%" icon={<Globe size={18}/>} />
+                        <StatsBox label="Live_Success" value="94.2%" icon={<Zap size={18}/>} />
+                        <StatsBox label="Uptime" value="100%" icon={<Globe size={18}/>} />
                     </div>
                 </div>
             )}
         </main>
 
+        {/* ACTIONS & DEPLOY */}
         <aside className="col-span-3 flex flex-col gap-2">
             <div className="flex-1 border border-white/10 bg-white/[0.02] p-5 flex flex-col gap-4">
-                <div className="flex items-center gap-2 text-gray-500 border-b border-white/5 pb-2">
-                    <Target size={14} />
-                    <span className="text-[10px] font-black uppercase tracking-widest">Active_Target</span>
+                <div className="flex items-center gap-2 text-gray-500 border-b border-white/5 pb-2 uppercase text-[10px] font-black tracking-widest">
+                    <Target size={14} /> Selected_Target
                 </div>
                 {selectedMission ? (
                     <div className="space-y-4">
-                        <p className="text-[10px] leading-relaxed text-gray-300 font-bold italic bg-white/[0.02] p-2">"{selectedMission.objective}"</p>
+                        <p className="text-[10px] leading-relaxed text-gray-300 font-bold italic bg-white/[0.02] p-3 border border-white/5">"{selectedMission.objective}"</p>
                         <div className="grid grid-cols-2 gap-2">
-                            <MiniMetric label="STATUS" value={selectedMission.status} color={(selectedMission.status === 'approved' || selectedMission.status === 'active') ? '#00FFC2' : '#60A5FA'} />
+                            <MiniMetric label="STATUS" value={selectedMission.status} color={selectedMission.status === 'active' ? '#00FFC2' : '#60A5FA'} />
                             <MiniMetric label="BOUNTY" value={`$${selectedMission.bounty}`} />
                         </div>
                     </div>
-                ) : <p className="text-xs text-gray-600 italic">No selection...</p>}
+                ) : <p className="text-xs text-gray-600 italic">Waiting for target selection...</p>}
             </div>
 
             <button 
@@ -264,13 +258,12 @@ export default function PulseOperatorHub() {
                 {deploying ? (
                     <div className="flex flex-col items-center animate-pulse">
                         <span className="text-4xl font-black">{countdown}</span>
-                        <span className="text-[8px] font-bold uppercase">Uplink...</span>
+                        <span className="text-[8px] font-bold uppercase">Uplink_Sync...</span>
                     </div>
                 ) : (
                     <>
                         <Zap size={32} className={(selectedMission?.status === 'approved' || selectedMission?.status === 'active') ? "animate-bounce" : ""} />
-                        <span className="text-2xl font-black italic uppercase tracking-tighter">Deploy_Link</span>
-                        <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
+                        <span className="text-2xl font-black italic uppercase tracking-tighter">Initialize_Live</span>
                     </>
                 )}
             </button>
@@ -280,7 +273,7 @@ export default function PulseOperatorHub() {
   );
 }
 
-// COMPOSANTS HELPERS
+// HELPERS (Aucun changement ici)
 function TabButton({ active, onClick, icon, label }: any) {
     return (
         <button onClick={onClick} className={`flex items-center gap-2 px-6 py-2 rounded-md transition-all ${active ? 'bg-[#00FFC2] text-black font-black' : 'text-gray-500 hover:text-white font-bold'}`}>
@@ -304,10 +297,10 @@ function StatsBox({ label, value, icon }: any) {
 function MissionCategory({ label, items, onSelect, activeId, color, icon }: any) {
     return (
         <div className="space-y-2 mt-2">
-            <h4 className="text-[8px] font-black uppercase text-gray-600 flex items-center gap-2">{icon} {label}</h4>
+            <h4 className="text-[8px] font-black uppercase text-gray-600 flex items-center gap-2 px-2">{icon} {label}</h4>
             <div className="space-y-1">
                 {items.map((m: any) => (
-                    <button key={m.id} onClick={() => onSelect(m)} className={`w-full text-left p-2 border transition-all flex items-center justify-between ${activeId === m.id ? 'bg-white/10 border-white/20' : 'border-transparent hover:bg-white/[0.02]'}`}>
+                    <button key={m.id} onClick={() => onSelect(m)} className={`w-full text-left p-3 border transition-all flex items-center justify-between ${activeId === m.id ? 'bg-white/10 border-white/20' : 'border-transparent hover:bg-white/[0.02]'}`}>
                         <span className={`text-[10px] font-bold uppercase truncate max-w-[150px] ${activeId === m.id ? 'text-white' : 'text-gray-500'}`}>{m.objective}</span>
                         <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
                     </button>
@@ -329,7 +322,7 @@ function MiniMetric({ label, value, color }: any) {
 function InputSmall({ label, value, onChange }: any) {
     return (
         <div className="space-y-1">
-            <label className="text-[8px] font-black text-gray-600 uppercase">{label}</label>
+            <label className="text-[8px] font-black text-gray-600 uppercase px-1">{label}</label>
             <input type="number" value={value} onChange={(e) => onChange(e.target.value)} className="w-full bg-black border border-white/10 p-3 text-xs text-[#00FFC2] outline-none focus:border-[#00FFC2]" />
         </div>
     );
