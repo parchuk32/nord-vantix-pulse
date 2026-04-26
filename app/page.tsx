@@ -40,14 +40,10 @@ export default function NordVantixHome() {
   };
 
   return (
-    // CHANGEMENT ICI : min-h-screen au lieu de h-[calc...] et overflow-y-auto pour pouvoir scroller sur cell
     <main className="min-h-[calc(100vh-64px)] w-full bg-black flex flex-col items-center justify-center relative overflow-x-hidden overflow-y-auto font-mono py-12 px-4">
       
       {/* EFFET DE SOL */}
       <div className="grid-floor opacity-30" />
-      
-      {/* OVERLAY DE SCAN TACTIQUE - Caché sur petit écran pour plus de clarté */}
-      <div className="absolute inset-0 pointer-events-none border-[10px] md:border-[20px] border-white/5 z-20 hidden sm:block" />
       
       <div className={`z-10 text-center space-y-8 md:space-y-12 transition-all duration-1000 w-full max-w-4xl ${bootSequence ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
         
@@ -61,7 +57,7 @@ export default function NordVantixHome() {
           </div>
         </div>
 
-        {/* NAVIGATION CENTRALE - Changement du gap et padding pour mobile */}
+        {/* NAVIGATION CENTRALE */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 w-full max-w-sm md:max-w-4xl mx-auto">
           
           <Link href="/terminal" className="group p-6 md:p-8 bg-black/40 backdrop-blur-xl border border-[#a855f7]/20 rounded-2xl hover:border-[#a855f7] transition-all flex flex-col items-center gap-4">
@@ -87,7 +83,7 @@ export default function NordVantixHome() {
           </button>
         </div>
 
-        {/* DATA FEED - flex-wrap pour que ça passe sur deux lignes si besoin sur mobile */}
+        {/* DATA FEED */}
         <div className="pt-6 md:pt-10 flex flex-wrap gap-4 md:gap-12 justify-center opacity-40">
            {['Encryption: AES-256', isAuthenticated ? 'Status: Authenticated' : 'Status: Public', 'Signal: 100%'].map((info, i) => (
              <div key={i} className="text-[7px] md:text-[8px] font-black uppercase tracking-[0.2em] md:tracking-[0.4em] text-white/50">{info}</div>
