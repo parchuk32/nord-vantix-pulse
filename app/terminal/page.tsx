@@ -5,7 +5,8 @@ import { LiveKitRoom, useTracks, VideoTrack, RoomAudioRenderer } from '@livekit/
 import { Track } from 'livekit-client';
 import { 
   Menu, Search, User, Bell, MonitorPlay, 
-  Target, Shield, Users, LayoutGrid
+  Target, Shield, Users, LayoutGrid,
+  X, Crosshair, Award, MapPin, Calendar
 } from 'lucide-react';
 import '@livekit/components-styles';
 
@@ -47,7 +48,16 @@ const generateFakeLives = (amount: number) => {
       category: randomCat,
       bounty: Math.floor(Math.random() * 800) + 20, // Entre $20 et $820
       min_viewers: Math.floor(Math.random() * 50) + 1, // Entre 1k et 50k
-      status: 'active'
+      status: 'active',
+      // --- STATISTIQUES CARRIÈRE POUR LE PROFIL ---
+      stats: {
+        rank: Math.floor(Math.random() * 500) + 1,
+        total_earned: Math.floor(Math.random() * 50000) + 1000,
+        missions_completed: Math.floor(Math.random() * 150) + 10,
+        success_rate: (Math.random() * (99 - 70) + 70).toFixed(1), // Entre 70% et 99%
+        joined: `202${Math.floor(Math.random() * 4) + 2}`, // 2022-2025
+        location: ["Montréal", "Toronto", "Vancouver", "New York", "Classifié"][Math.floor(Math.random() * 5)]
+      }
     };
   });
 };
@@ -76,10 +86,14 @@ export default function WatcherTerminal() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("ALL");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  
+  // NOUVEAUX STATES POUR LE PROFIL ET LE FOLLOW
+  const [viewingProfile, setViewingProfile] = useState<any>(null);
+  const [isFollowing, setIsFollowing] = useState(false);
 
   // --- MOCK FETCH (On simule l'appel backend) ---
   useEffect(() => {
-    // On génère 45 faux streams pour tester la grille
+    // On génère 200 faux streams pour tester la grille
     setActivePlayers(generateFakeLives(200));
 
     // VRAI CODE COMMENTÉ POUR ÉVITER LES REQUÊTES
@@ -93,6 +107,11 @@ export default function WatcherTerminal() {
     return () => { supabase.removeChannel(channel); };
     */
   }, []);
+
+  // Reset le state isFollowing quand on ouvre un nouveau profil
+  useEffect(() => {
+    setIsFollowing(false);
+  }, [viewingProfile]);
 
   // --- LOGIQUE DE CONNEXION AU FLUX ---
   useEffect(() => {
@@ -122,12 +141,12 @@ export default function WatcherTerminal() {
   });
 
   return (
-    <div className="h-screen w-full bg-[#0a0a0a] text-white flex flex-col font-sans overflow-hidden">
+    <div className="h-screen w-full bg-[#0a0a0a] text-white flex flex-col font-sans overflow-hidden relative">
       
       {/* =========================================================================
           TOP NAVBAR
           ========================================================================= */}
-      <nav className="h-14 bg-[#121212] border-b border-white/5 flex items-center justify-between px-4 z-50 shrink-0">
+      <nav className="h-14 bg-[#121212] border-b border-white/5 flex items-center justify-between px-4 z-40 shrink-0">
         <div className="flex items-center gap-4 w-1/4">
           <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-1.5 hover:bg-white/10 rounded-md transition-colors">
             <Menu size={20} />
@@ -154,8 +173,10 @@ export default function WatcherTerminal() {
         </div>
 
         <div className="flex items-center justify-end gap-3 w-1/4">
-          <button className="p-2 hover:bg-white/10 rounded-full transition-colors hidden sm:block">
+          <button className="p-2 hover:bg-white/10 rounded-full transition-colors hidden sm:block relative">
             <Bell size={18} />
+            {/* Petit badge rouge pour simuler une notification de live */}
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border border-[#121212]"></span>
           </button>
           <div className="h-8 w-8 rounded-full bg-[#00FFC2] flex items-center justify-center cursor-pointer border border-black shadow-[0_0_10px_rgba(0,255,194,0.3)]">
             <User size={16} className="text-black" />
@@ -163,12 +184,12 @@ export default function WatcherTerminal() {
         </div>
       </nav>
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden z-0">
         
         {/* =========================================================================
             LEFT SIDEBAR (Navigation Catégories)
             ========================================================================= */}
-        <aside className={`${isSidebarOpen ? 'w-60' : 'w-14'} bg-[#121212] border-r border-white/5 flex flex-col transition-all duration-300 shrink-0`}>
+        <aside className={`${isSidebarOpen ? 'w-60' : 'w-14'} bg-[#121212] border-r border-white/5 flex flex-col transition-all duration-300 shrink-0 z-10`}>
           <div className="p-3">
             <h3 className={`text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 px-2 ${!isSidebarOpen && 'text-center'}`}>
               {isSidebarOpen ? 'Catégories' : <LayoutGrid size={16} className="mx-auto" />}
@@ -251,7 +272,13 @@ export default function WatcherTerminal() {
                   <div className="flex-1">
                     <h1 className="text-xl font-bold mb-1">{selectedPlayer.objective}</h1>
                     <div className="flex items-center gap-4 text-sm font-medium mb-3">
-                      <span className="text-[#00FFC2] font-bold">Opérateur {selectedPlayer.id.substring(8,14)}</span>
+                      {/* NOM CLIQUABLE POUR OUVRIR LE PROFIL */}
+                      <button 
+                        onClick={() => setViewingProfile(selectedPlayer)}
+                        className="text-[#00FFC2] font-bold hover:underline transition-all"
+                      >
+                        Opérateur {selectedPlayer.id.substring(8,14)}
+                      </button>
                     </div>
                     <div className="flex gap-2">
                       <span className="px-3 py-1 bg-white/10 rounded-full text-xs font-bold text-gray-300">{selectedPlayer.category}</span>
@@ -325,6 +352,119 @@ export default function WatcherTerminal() {
           )}
         </main>
       </div>
+
+      {/* =========================================================================
+          MODAL DU DOSSIER OPÉRATEUR (Fiche Profil)
+          ========================================================================= */}
+      {viewingProfile && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div 
+            className="absolute inset-0 bg-black/80 backdrop-blur-sm cursor-pointer"
+            onClick={() => setViewingProfile(null)}
+          />
+          
+          <div className="relative w-full max-w-2xl bg-[#0f0f0f] border border-[#00FFC2]/30 rounded-xl shadow-[0_0_50px_rgba(0,255,194,0.1)] overflow-hidden flex flex-col z-10 animate-in fade-in zoom-in-95 duration-200">
+            
+            <div className="h-32 bg-[#1a1a1a] relative border-b border-white/5">
+               <button 
+                 onClick={() => setViewingProfile(null)}
+                 className="absolute top-4 right-4 p-2 bg-black/50 hover:bg-black rounded-full text-gray-400 hover:text-white transition-colors"
+               >
+                 <X size={20} />
+               </button>
+               <div className="absolute -bottom-10 left-8 flex items-end gap-4">
+                 <div className="w-24 h-24 rounded-full bg-zinc-900 border-4 border-[#0f0f0f] flex items-center justify-center text-3xl font-black text-[#00FFC2] shadow-xl">
+                   N{viewingProfile.id.substring(8,10)}
+                 </div>
+                 <div className="mb-2">
+                   <h2 className="text-3xl font-black italic tracking-tighter text-white">OP_{viewingProfile.id.substring(8,14)}</h2>
+                   <div className="flex items-center gap-2 text-xs font-bold text-[#00FFC2] uppercase">
+                     <Shield size={12} /> Dossier Classifié
+                   </div>
+                 </div>
+               </div>
+            </div>
+
+            <div className="p-8 pt-16 flex flex-col gap-8">
+              
+              <div className="grid grid-cols-3 gap-4 border border-white/5 bg-black/40 rounded-lg p-4">
+                <div className="flex flex-col items-center justify-center gap-1">
+                  <span className="text-[10px] text-gray-500 uppercase tracking-widest font-bold flex items-center gap-1"><MapPin size={10}/> Base</span>
+                  <span className="text-sm font-bold">{viewingProfile.stats.location}</span>
+                </div>
+                <div className="flex flex-col items-center justify-center gap-1 border-x border-white/5">
+                  <span className="text-[10px] text-gray-500 uppercase tracking-widest font-bold flex items-center gap-1"><Calendar size={10}/> Actif depuis</span>
+                  <span className="text-sm font-bold">{viewingProfile.stats.joined}</span>
+                </div>
+                <div className="flex flex-col items-center justify-center gap-1">
+                  <span className="text-[10px] text-gray-500 uppercase tracking-widest font-bold flex items-center gap-1"><Award size={10}/> Rang Global</span>
+                  <span className="text-lg font-black text-[#00FFC2]">#{viewingProfile.stats.rank}</span>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-xs font-black text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <Crosshair size={14} className="text-[#00FFC2]"/> Statistiques Carrière
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="bg-[#1a1a1a] border border-white/5 p-4 rounded-lg flex flex-col gap-1">
+                    <span className="text-[9px] text-gray-400 uppercase tracking-widest font-bold">Total Primes ($)</span>
+                    <span className="text-3xl font-black italic">${viewingProfile.stats.total_earned.toLocaleString()}</span>
+                  </div>
+                  <div className="bg-[#1a1a1a] border border-white/5 p-4 rounded-lg flex flex-col gap-1">
+                    <span className="text-[9px] text-gray-400 uppercase tracking-widest font-bold">Missions Réussies</span>
+                    <span className="text-3xl font-black italic text-white">{viewingProfile.stats.missions_completed}</span>
+                  </div>
+                  <div className="bg-[#1a1a1a] border border-white/5 p-4 rounded-lg flex flex-col gap-1">
+                    <span className="text-[9px] text-gray-400 uppercase tracking-widest font-bold">Taux de Succès</span>
+                    <div className="flex items-end gap-2">
+                      <span className="text-3xl font-black italic text-[#00FFC2]">{viewingProfile.stats.success_rate}%</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-4 mt-2">
+                <button 
+                  onClick={async () => {
+                    // Simulation du toggle Follow pour l'interface de test
+                    setIsFollowing(!isFollowing);
+                    
+                    // Code Supabase pour la production (commenté pour le test UI)
+                    /*
+                    const watcherId = "ID_UTILISATEUR"; 
+                    if (isFollowing) {
+                      await supabase.from('followers').delete().match({ follower_id: watcherId, following_id: viewingProfile.user_id });
+                    } else {
+                      await supabase.from('followers').insert({ follower_id: watcherId, following_id: viewingProfile.user_id });
+                    }
+                    */
+                  }}
+                  className={`flex-1 py-4 font-black uppercase text-xs tracking-[0.2em] transition-all rounded-lg flex items-center justify-center gap-2 border ${
+                    isFollowing 
+                      ? 'bg-transparent text-gray-400 border-white/10 hover:bg-red-500/10 hover:text-red-500 hover:border-red-500/30' 
+                      : 'bg-[#00FFC2] text-black hover:bg-[#00cc99] border-[#00FFC2]'
+                  }`}
+                >
+                  <Bell size={16} className={isFollowing ? 'opacity-50' : ''} />
+                  {isFollowing ? 'Désactiver Signal' : 'Activer Signal (Suivre)'}
+                </button>
+
+                <button 
+                  className="flex-1 py-4 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-black uppercase text-xs tracking-[0.2em] transition-colors rounded-lg flex items-center justify-center gap-2"
+                  onClick={() => {
+                     setSelectedPlayer(viewingProfile);
+                     setViewingProfile(null);
+                  }}
+                >
+                  <MonitorPlay size={16} /> Rejoindre
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
