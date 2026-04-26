@@ -16,17 +16,16 @@ const supabase = createClient(
 
 // --- RENDU VIDÉO SÉCURISÉ ---
 function VideoRenderer() {
-  // On cherche le flux caméra de l'opérateur avec "onlySubscribed" pour éviter de s'auto-afficher
   const tracks = useTracks([Track.Source.Camera], { onlySubscribed: true });
 
   if (tracks.length > 0) {
-    return <VideoTrack trackRef={tracks[0]} className="absolute inset-0 w-full h-full object-cover" />;
+    return <VideoTrack trackRef={tracks[0]} className="absolute inset-0 w-full h-full object-cover rounded-xl" />;
   }
 
   return (
-    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black">
-      <div className="w-10 h-10 border-2 border-[#00FFC2] border-t-transparent rounded-full animate-spin mb-4" />
-      <span className="text-[10px] text-[#00FFC2] animate-pulse uppercase font-black tracking-widest">Searching_Signal...</span>
+    <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0a0a0a] rounded-xl border border-white/5">
+      <div className="w-10 h-10 border-2 border-[#ffa31a] border-t-transparent rounded-full animate-spin mb-4" />
+      <span className="text-xs text-[#ffa31a] animate-pulse font-bold tracking-wider">Recherche du signal...</span>
     </div>
   );
 }
@@ -43,7 +42,6 @@ export default function WatcherTerminal() {
 
   // --- FETCH & REALTIME ---
   const fetchSessions = async () => {
-    // On ne récupère que les missions dont le statut est 'active'
     const { data } = await supabase
       .from('missions')
       .select('*')
@@ -55,8 +53,6 @@ export default function WatcherTerminal() {
 
   useEffect(() => {
     fetchSessions();
-    
-    // Écoute en temps réel des changements de statut dans Supabase
     const channel = supabase
       .channel('terminal-sync')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'missions' }, () => { 
@@ -76,21 +72,15 @@ export default function WatcherTerminal() {
 
     const connectToStream = async () => {
       try {
-        // SYNCHRONISATION : Doit être identique à la room de l'Operator Hub
         const roomName = `mission_${selectedPlayer.id}`; 
-        console.log("🔍 [WATCHER] Tentative d'interception de la salle:", roomName);
-
         const resp = await fetch(`/api/get-participant-token?room=${roomName}&username=WATCHER_${Math.floor(Math.random() * 1000)}`);
         const data = await resp.json();
         
         if (data.token) {
-          console.log("✅ [WATCHER] Signal intercepté avec succès.");
           setWatcherToken(data.token);
-        } else {
-          console.error("❌ [WATCHER] Aucun token reçu de l'API");
         }
       } catch (e) { 
-        console.error("💥 [WATCHER] ÉCHEC DE CONNEXION:", e); 
+        console.error("Échec de connexion:", e); 
       }
     };
 
@@ -99,12 +89,10 @@ export default function WatcherTerminal() {
 
   // --- LOGIQUE DE FILTRAGE LOCAL ---
   const filteredOps = activePlayers.filter(player => {
-    // Recherche par mot-clé dans l'objectif ou par l'ID du nœud
     const matchesSearch = 
       player.objective?.toLowerCase().includes(searchQuery.toLowerCase()) || 
       player.id.toLowerCase().includes(searchQuery.toLowerCase());
 
-    // Filtrage par catégorie (basé sur la prime pour l'instant)
     const matchesCategory = 
       activeCategory === "ALL_COMMS" ||
       (activeCategory === "HIGH_VALUE" && player.bounty >= 500) ||
@@ -114,85 +102,78 @@ export default function WatcherTerminal() {
   });
 
   // =========================================================================
-  // VUE 1 : TERMINAL D'INTERCEPTION (QUAND UN JOUEUR EST SÉLECTIONNÉ)
+  // VUE 1 : TERMINAL D'INTERCEPTION (STREAM)
   // =========================================================================
   if (selectedPlayer) {
     return (
-      <main className="h-screen w-full bg-[#020202] font-mono text-white flex flex-col overflow-hidden p-2 gap-2 relative">
+      <main className="h-screen w-full bg-[#000000] text-white flex flex-col overflow-hidden font-sans relative">
         {/* HEADER */}
-        <div className="h-14 w-full border border-white/10 bg-white/[0.02] flex items-center justify-between px-6">
+        <div className="h-16 w-full bg-[#0f0f0f] border-b border-white/5 flex items-center justify-between px-6 z-10">
           <button 
             onClick={() => {setSelectedPlayer(null); setWatcherToken("");}} 
-            className="flex items-center gap-2 text-gray-500 hover:text-[#00FFC2] text-[9px] font-black uppercase transition-colors"
+            className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#1b1b1b] text-gray-300 hover:text-white hover:bg-[#2a2a2a] text-sm font-bold transition-all"
           >
-            <ChevronLeft size={14} /> Abort_Link
+            <ChevronLeft size={16} /> Retour
           </button>
-          <div className="flex items-center gap-3 text-[#00FFC2]">
-            <Activity size={18} className="animate-pulse" />
-            <span className="text-xs italic uppercase">Monitoring_Node_{selectedPlayer.id.substring(0,6)}</span>
+          <div className="flex items-center gap-3 text-[#ffa31a]">
+            <Activity size={20} className="animate-pulse" />
+            <span className="font-bold tracking-wide">Monitoring_Node_{selectedPlayer.id.substring(0,6)}</span>
           </div>
-          <div className="text-right">
-            <span className="text-[7px] text-gray-600 block uppercase">Signal</span>
-            <span className="text-[9px] text-[#00FFC2]">ENCRYPTED</span>
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+            <span className="text-xs text-gray-400 font-medium">ENCRYPTÉ</span>
           </div>
         </div>
 
-        <div className="flex-1 grid grid-cols-12 gap-2 overflow-hidden">
-          {/* SIDEBAR GAUCHE */}
-          <aside className="col-span-3 border border-white/10 p-4 flex flex-col gap-6 bg-white/[0.01]">
-            <div className="flex items-center gap-2 text-[#00FFC2] border-b border-white/5 pb-2">
-              <Fingerprint size={14} />
-              <span className="text-[9px] font-black uppercase">Intercept_Data</span>
-            </div>
-            <div className="mt-auto border border-white/5 h-40 relative flex items-center justify-center bg-black">
-              <Crosshair size={60} className="text-white/5 animate-pulse" />
-            </div>
-          </aside>
-
+        <div className="flex-1 p-6 grid grid-cols-1 lg:grid-cols-4 gap-6 overflow-hidden">
           {/* ZONE VIDÉO PRINCIPALE */}
-          <section className="col-span-6 border border-white/10 bg-black relative overflow-hidden">
-             {watcherToken ? (
-                <LiveKitRoom 
-                  video={false} 
-                  audio={true} 
-                  token={watcherToken} 
-                  serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL} 
-                  connect={true} 
-                  className="h-full w-full"
-                >
-                  <VideoRenderer />
-                  <RoomAudioRenderer />
-                </LiveKitRoom>
-             ) : (
-                <div className="absolute inset-0 flex items-center justify-center animate-pulse text-gray-700 text-[10px] uppercase tracking-[0.5em]">
-                  Establishing_Uplink...
-                </div>
-             )}
+          <section className="lg:col-span-3 bg-[#0a0a0a] rounded-2xl relative overflow-hidden shadow-2xl border border-white/5 flex flex-col">
+             <div className="flex-1 relative">
+               {watcherToken ? (
+                  <LiveKitRoom 
+                    video={false} 
+                    audio={true} 
+                    token={watcherToken} 
+                    serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL} 
+                    connect={true} 
+                    className="h-full w-full"
+                  >
+                    <VideoRenderer />
+                    <RoomAudioRenderer />
+                  </LiveKitRoom>
+               ) : (
+                  <div className="absolute inset-0 flex items-center justify-center animate-pulse text-gray-500 text-sm font-medium tracking-widest">
+                    Établissement de la connexion...
+                  </div>
+               )}
+             </div>
              
-             {/* INFO OVERLAY SUR LA VIDÉO */}
-             <div className="absolute bottom-0 inset-x-0 p-6 bg-gradient-to-t from-black to-transparent pointer-events-none">
-                <div className="flex justify-between items-end">
-                    <div>
-                      <span className="text-[8px] text-[#00FFC2] font-black uppercase block flex items-center gap-2">
-                        <Target size={12}/> Active_Objective
-                      </span>
-                      <h2 className="text-xl font-black italic uppercase text-white max-w-md line-clamp-2">
-                        {selectedPlayer.objective}
-                      </h2>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-[8px] text-gray-500 uppercase block">Bounty</span>
-                      <div className="text-4xl font-black text-[#00FFC2] italic">${selectedPlayer.bounty}</div>
-                    </div>
+             {/* INFO BAR SOUS LA VIDÉO */}
+             <div className="h-24 bg-[#0f0f0f] border-t border-white/5 p-4 flex justify-between items-center px-6">
+                <div>
+                  <span className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1 block">Objectif Actif</span>
+                  <h2 className="text-lg font-bold text-white max-w-2xl truncate">
+                    {selectedPlayer.objective}
+                  </h2>
+                </div>
+                <div className="text-right">
+                  <span className="text-xs text-gray-400 font-bold uppercase tracking-wider block mb-1">Prime (Bounty)</span>
+                  <div className="text-3xl font-black text-[#ffa31a]">${selectedPlayer.bounty}</div>
                 </div>
              </div>
           </section>
 
           {/* SIDEBAR DROITE / LOGS */}
-          <aside className="col-span-3 border border-white/10 p-4 opacity-50 italic text-[9px] space-y-2 bg-white/[0.01]">
-            <p className="text-gray-500">{'>'} Scanning frequencies...</p>
-            {watcherToken && <p className="text-[#00FFC2]">{'>'} Uplink established.</p>}
-            <p className="text-gray-500">{'>'} Intercepting packets...</p>
+          <aside className="bg-[#0f0f0f] rounded-2xl border border-white/5 p-6 flex flex-col gap-4">
+            <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2 border-b border-white/5 pb-4">
+              <Fingerprint size={16} /> Intercept Data
+            </h3>
+            <div className="flex-1 bg-[#0a0a0a] rounded-xl border border-white/5 p-4 font-mono text-xs text-gray-500 space-y-2 overflow-y-auto">
+              <p>{'>'} Scan des fréquences en cours...</p>
+              {watcherToken && <p className="text-[#ffa31a]">{'>'} Liaison établie avec succès.</p>}
+              <p>{'>'} Interception des paquets réseau...</p>
+              <p className="animate-pulse">{'>'} En attente de données...</p>
+            </div>
           </aside>
         </div>
       </main>
@@ -200,85 +181,100 @@ export default function WatcherTerminal() {
   }
 
   // =========================================================================
-  // VUE 2 : LISTE GLOBALE (TERMINAL HOME)
+  // VUE 2 : LISTE GLOBALE (DASHBOARD STYLE)
   // =========================================================================
   return (
-    <main className="min-h-screen bg-[#050505] flex flex-col p-6 font-mono text-white">
-      {/* HEADER DASHBOARD */}
-      <div className="flex justify-between items-end border-b border-white/5 pb-8 mb-8">
-        <div>
-          <h2 className="text-5xl font-black uppercase italic tracking-tighter">Terminal_V4</h2>
-          <p className="text-[10px] text-gray-600 mt-2 uppercase tracking-[0.2em]">Global_Encryption_Active</p>
-        </div>
-        <div className="text-right">
-          <div className="text-[10px] text-gray-500 uppercase font-black">Active_Ops</div>
-          <div className="text-5xl font-black text-[#00FFC2]">
-            {filteredOps.length} <span className="text-xl text-gray-600">/ {activePlayers.length}</span>
+    <main className="min-h-screen bg-[#000000] text-white flex flex-col font-sans">
+      
+      {/* HEADER ET RECHERCHE FIXES */}
+      <div className="sticky top-0 z-50 bg-[#000000]/90 backdrop-blur-md border-b border-white/10 px-8 py-6">
+        <div className="max-w-7xl mx-auto space-y-6">
+          
+          {/* TOP BAR */}
+          <div className="flex justify-between items-center">
+            <h2 className="text-3xl font-black tracking-tight flex items-center gap-2">
+              Terminal<span className="text-[#ffa31a]">V4</span>
+            </h2>
+            <div className="flex items-center gap-4 bg-[#1b1b1b] px-4 py-2 rounded-full border border-white/5">
+              <div className="text-xs text-gray-400 font-bold uppercase">Opérations Actives</div>
+              <div className="text-xl font-black text-white">
+                {filteredOps.length} <span className="text-gray-500 text-sm">/ {activePlayers.length}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* MODULE DE RECHERCHE FAÇON "PH" */}
+          <div className="flex flex-col md:flex-row gap-4 items-center">
+            {/* Barre de recherche arrondie */}
+            <div className="relative flex-1 w-full">
+              <Search size={20} className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Rechercher un objectif, un ID..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-[#1b1b1b] hover:bg-[#222222] border-2 border-transparent focus:border-[#ffa31a] transition-all py-3.5 pl-14 pr-6 text-sm text-white rounded-full outline-none placeholder:text-gray-500 font-medium"
+              />
+            </div>
+            
+            {/* Catégories (Pillules) */}
+            <div className="flex gap-2 w-full md:w-auto overflow-x-auto hide-scrollbar pb-2 md:pb-0">
+              <FilterButton label="Tout afficher" active={activeCategory === "ALL_COMMS"} onClick={() => setActiveCategory("ALL_COMMS")} />
+              <FilterButton label="Haute Valeur" active={activeCategory === "HIGH_VALUE"} onClick={() => setActiveCategory("HIGH_VALUE")} />
+              <FilterButton label="Standard" active={activeCategory === "STANDARD"} onClick={() => setActiveCategory("STANDARD")} />
+            </div>
           </div>
         </div>
       </div>
 
-      {/* MODULE DE RECHERCHE ET FILTRES */}
-      <div className="flex flex-col md:flex-row gap-4 mb-8 border border-white/10 bg-white/[0.01] p-4 items-center shadow-[0_0_30px_rgba(0,0,0,0.5)]">
-        {/* Barre de recherche */}
-        <div className="relative flex-1 w-full">
-          <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#00FFC2]" />
-          <input
-            type="text"
-            placeholder="SCAN_OBJECTIVES_OR_NODE_ID..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-black border border-white/10 py-3 pl-10 pr-4 text-xs text-[#00FFC2] outline-none focus:border-[#00FFC2]/50 transition-colors placeholder:text-gray-700 uppercase"
-          />
-        </div>
-        
-        {/* Catégories rapides */}
-        <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-2 md:pb-0 hide-scrollbar">
-          <SlidersHorizontal size={14} className="text-gray-600 mr-2 self-center hidden md:block" />
-          <FilterButton label="ALL_COMMS" active={activeCategory === "ALL_COMMS"} onClick={() => setActiveCategory("ALL_COMMS")} />
-          <FilterButton label="HIGH_VALUE" active={activeCategory === "HIGH_VALUE"} onClick={() => setActiveCategory("HIGH_VALUE")} />
-          <FilterButton label="STANDARD" active={activeCategory === "STANDARD"} onClick={() => setActiveCategory("STANDARD")} />
-        </div>
-      </div>
-
       {/* GRILLE DES RÉSULTATS */}
-      {filteredOps.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center border border-white/5 rounded-lg bg-white/[0.01] opacity-20 italic">
-          <p className="animate-pulse">{activePlayers.length === 0 ? "Waiting for active signals..." : "NO_MATCHING_SIGNALS_FOUND"}</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {filteredOps.map((player) => (
-            <div 
-              key={player.id} 
-              onClick={() => setSelectedPlayer(player)} 
-              className="group relative border border-white/10 aspect-video bg-zinc-900/40 overflow-hidden hover:border-[#00FFC2] transition-all cursor-pointer shadow-2xl"
-            >
-              <div className="absolute inset-0 p-6 flex flex-col justify-between z-10">
-                <div className="flex justify-between items-start">
-                  <span className="bg-black/90 px-3 py-1.5 border border-[#00FFC2]/30 text-[9px] font-black uppercase text-[#00FFC2]">
-                    NODE_{player.id.substring(0, 6)}
-                  </span>
-                  {/* Indice visuel si Haute Valeur (Bounty >= 500) */}
-                  {player.bounty >= 500 && (
-                     <span className="text-[8px] text-red-500 border border-red-500/30 bg-red-500/10 px-2 py-1 uppercase tracking-widest animate-pulse">HVT</span>
-                  )}
+      <div className="flex-1 max-w-7xl mx-auto w-full p-8">
+        {filteredOps.length === 0 ? (
+          <div className="h-64 flex flex-col items-center justify-center rounded-3xl bg-[#0f0f0f] border border-white/5">
+            <Target size={48} className="text-gray-600 mb-4" />
+            <p className="text-gray-400 font-medium text-lg">
+              {activePlayers.length === 0 ? "Aucun signal détecté pour le moment." : "Aucune mission ne correspond à cette recherche."}
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredOps.map((player) => (
+              <div 
+                key={player.id} 
+                onClick={() => setSelectedPlayer(player)} 
+                className="group relative bg-[#0f0f0f] border border-white/5 rounded-2xl overflow-hidden hover:border-[#ffa31a]/50 transition-all cursor-pointer shadow-lg hover:shadow-[#ffa31a]/10 hover:-translate-y-1"
+              >
+                {/* Zone Image/Video placeholder */}
+                <div className="aspect-video bg-[#1a1a1a] relative overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#0f0f0f] to-transparent z-10" />
+                  
+                  {/* Badge */}
+                  <div className="absolute top-4 left-4 z-20 flex gap-2">
+                    <span className="bg-[#ffa31a] text-black px-3 py-1 text-xs font-black rounded-full">
+                      NODE_{player.id.substring(0, 6)}
+                    </span>
+                    {player.bounty >= 500 && (
+                      <span className="bg-white text-black px-3 py-1 text-xs font-black rounded-full shadow-lg">
+                        HVT
+                      </span>
+                    )}
+                  </div>
                 </div>
                 
-                <div>
-                  <div className="text-[8px] text-gray-500 uppercase tracking-widest mb-1 truncate">{player.objective}</div>
-                  <div className="text-4xl font-black italic tracking-tighter group-hover:text-[#00FFC2] transition-colors">
+                {/* Infos */}
+                <div className="p-5 flex flex-col gap-2">
+                  <h3 className="text-sm text-gray-300 font-medium line-clamp-2 min-h-[40px] group-hover:text-white transition-colors">
+                    {player.objective}
+                  </h3>
+                  <div className="text-2xl font-black text-white mt-2 group-hover:text-[#ffa31a] transition-colors">
                     ${player.bounty}
                   </div>
                 </div>
               </div>
-              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
-              {/* Effet de scanline au survol */}
-              <div className="absolute inset-0 opacity-0 group-hover:opacity-10 pointer-events-none bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%)] bg-[length:100%_4px]" />
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </div>
     </main>
   );
 }
@@ -288,10 +284,10 @@ function FilterButton({ active, onClick, label }: any) {
   return (
     <button
       onClick={onClick}
-      className={`whitespace-nowrap px-4 py-3 text-[9px] font-black uppercase tracking-widest transition-all border ${
+      className={`whitespace-nowrap px-6 py-3.5 text-sm font-bold rounded-full transition-all duration-200 ${
         active
-          ? 'bg-[#00FFC2]/10 border-[#00FFC2] text-[#00FFC2] shadow-[0_0_15px_rgba(0,255,194,0.1)]'
-          : 'bg-black border-white/10 text-gray-600 hover:border-white/30 hover:text-white'
+          ? 'bg-[#ffa31a] text-black shadow-[0_0_20px_rgba(255,163,26,0.2)]'
+          : 'bg-[#1b1b1b] text-gray-300 hover:bg-[#2a2a2a] hover:text-white border border-transparent'
       }`}
     >
       {label}
